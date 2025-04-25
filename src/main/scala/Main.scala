@@ -1,5 +1,5 @@
 @main def hello(): Unit =
-  println("Hello world!")
-  println(msg)
+  val input = """{"hello": "world"}"""
+  val json = Json.parse(input)
+  println(json)
 
-def msg = "I was compiled by Scala 3. :)"
