@@ -5,12 +5,14 @@ class ParseTest extends AnyFunSuite:
     val input = """null"""
     val json = Json.parse(input)
 
-    assert(json == Json.ValueNull)
+    assert(json == Right(Json.ValueNull))
   }
 
   test("object consisted of string") {
     val input = """{"hello": "world"}""".stripMargin
     val json = Json.parse(input)
 
-    assert(json == Json.ValueObject(Map("hello" -> Json.ValueString("world"))))
+    assert(
+      json == Right(Json.ValueObject(Map("hello" -> Json.ValueString("world"))))
+    )
   }

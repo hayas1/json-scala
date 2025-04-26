@@ -1,16 +1,14 @@
-import java.util.ResourceBundle.Control
-abstract class ControlToken(represent: Char):
-  override def toString = represent.toString()
-case class LeftBrace() extends ControlToken(ControlToken.LEFT_BRACE)
-case class RightBrace() extends ControlToken(ControlToken.RIGHT_BRACE)
-case class Colon() extends ControlToken(ControlToken.COLON)
-case class Quote() extends ControlToken(ControlToken.QUOTE)
-
+abstract class ControlToken(represent: Char)
 object ControlToken:
   val LEFT_BRACE = '{'
   val RIGHT_BRACE = '}'
   val COLON = ':'
   val QUOTE = '"'
+
+  case object LeftBrace extends ControlToken(ControlToken.LEFT_BRACE)
+  case object RightBrace extends ControlToken(ControlToken.RIGHT_BRACE)
+  case object Colon extends ControlToken(ControlToken.COLON)
+  case object Quote extends ControlToken(ControlToken.QUOTE)
 
   def apply(represent: Char) = represent match
     case LEFT_BRACE  => Some(LeftBrace)
@@ -18,6 +16,42 @@ object ControlToken:
     case COLON       => Some(Colon)
     case QUOTE       => Some(Quote)
     case _           => None
+
+class Tokenizer(cursor: RowColIterator):
+  def nextChar() = cursor.next()
+
+  def dropWhitespace() =
+    // TODO peek after Iterator.dropWhile(_.isWhitespace) will return whitespace
+    while cursor.hasNext && cursor.peek.isWhitespace do cursor.next()
+    cursor
+
+  def expect[T <: ControlToken](token: T) =
+    val actual = dropWhitespace().next()
+    Either.cond(
+      ControlToken(actual) == Some(token),
+      actual,
+      Tokenizer.UnexpectedToken(token, actual)
+    )
+
+  def takeUntil[T <: ControlToken, U](token: T)(f: => U) =
+    var list = List[U]()
+    while cursor.hasNext && ControlToken(cursor.peek) != Some(token) do
+      list = list :+ f
+    list
+
+object Tokenizer:
+  def apply(target: String) =
+    new Tokenizer(
+      new RowColIterator(target.linesIterator.toList.map(_.toList))
+    )
+
+  sealed trait TokenError:
+    def message: String
+    override def toString() = message
+  case class UnexpectedToken(exp: ControlToken, act: Char) extends TokenError:
+    def message = f"expected '$exp', but got '$act'"
+  case class Unreachable(msg: String = "unreachable") extends TokenError:
+    def message = msg
 
 class RowColIterator(mat: List[List[Char]], start: Position = Position())
     extends Iterator[Char]:
