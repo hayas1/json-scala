@@ -1,10 +1,10 @@
 enum Json:
-  case ValueNull
-  case ValueBool(value: Boolean)
-  case ValueNumber(value: Double)
-  case ValueString(value: String)
-  case ValueArray(values: List[Json])
   case ValueObject(fields: Map[String, Json])
+  case ValueArray(values: List[Json])
+  case ValueString(value: String)
+  case ValueNumber(value: Double)
+  case ValueBool(value: Boolean)
+  case ValueNull
 
   def isNull(): Boolean = this match
     case ValueNull => true

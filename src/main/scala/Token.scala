@@ -3,20 +3,20 @@ abstract class ControlToken(represent: Char):
   override def toString = represent.toString()
 case class LeftBrace() extends ControlToken(ControlToken.LEFT_BRACE)
 case class RightBrace() extends ControlToken(ControlToken.RIGHT_BRACE)
-case class Quote() extends ControlToken(ControlToken.QUOTE)
 case class Colon() extends ControlToken(ControlToken.COLON)
+case class Quote() extends ControlToken(ControlToken.QUOTE)
 
 object ControlToken:
   val LEFT_BRACE = '{'
   val RIGHT_BRACE = '}'
-  val QUOTE = '"'
   val COLON = ':'
+  val QUOTE = '"'
 
   def apply(represent: Char) = represent match
     case LEFT_BRACE  => Some(LeftBrace)
     case RIGHT_BRACE => Some(RightBrace)
-    case QUOTE       => Some(Quote)
     case COLON       => Some(Colon)
+    case QUOTE       => Some(Quote)
     case _           => None
 
 class RowColIterator(mat: List[List[Char]], start: Position = Position())
@@ -26,8 +26,7 @@ class RowColIterator(mat: List[List[Char]], start: Position = Position())
   def hasNext = !cursor.isEndOfMat(mat)
   def next() =
     val curr = peek
-    if cursor.isEndOfRow(mat) then cursor = cursor.nextRow
-    else cursor = cursor.nextCol
+    cursor = if cursor.isEndOfRow(mat) then cursor.nextRow else cursor.nextCol
     curr
 
   def peek = if cursor.isEndOfRow(mat) then '\n' else cursor.index(mat)
