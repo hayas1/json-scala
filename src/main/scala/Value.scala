@@ -9,7 +9,10 @@ enum Json:
   def isNull(): Boolean = this match
     case ValueNull => true
     case _         => false
+  def asString: Option[String] = this match
+    case ValueString(value) => Some(value)
+    case _                  => None
 
 object Json:
-  def parse(input: String): Json =
-    Parser.parse(input)
+  def parse(input: String) =
+    Parser(input).parse_value()

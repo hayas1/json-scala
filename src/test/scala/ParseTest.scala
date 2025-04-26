@@ -7,3 +7,10 @@ class ParseTest extends AnyFunSuite:
 
     assert(json == Json.ValueNull)
   }
+
+  test("object consisted of string") {
+    val input = """{"hello": "world"}""".stripMargin
+    val json = Json.parse(input)
+
+    assert(json == Json.ValueObject(Map("hello" -> Json.ValueString("world"))))
+  }
