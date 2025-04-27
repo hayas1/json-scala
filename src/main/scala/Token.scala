@@ -25,12 +25,14 @@ class Tokenizer(cursor: RowColIterator):
   def dropWhitespace() =
     // TODO peek after Iterator.dropWhile(_.isWhitespace) will return whitespace
     while cursor.hasNext && cursor.peek.isWhitespace do cursor.next()
-    cursor
+    cursor.position
 
   def expect(token: ControlToken, next: Boolean = true) =
-    val actual = if next then dropWhitespace().next() else dropWhitespace().peek
+    val pos = dropWhitespace()
+    val actual =
+      Spanned(if next then cursor.next() else cursor.peek, Span(pos, pos))
     Either.cond(
-      ControlToken(actual) == Some(token),
+      ControlToken(actual.token) == Some(token),
       actual,
       Tokenizer.UnexpectedToken(token, actual)
     )
@@ -68,8 +70,10 @@ object Tokenizer:
   sealed trait TokenError:
     def message: String
     override def toString() = message
-  case class UnexpectedToken(exp: ControlToken, act: Char) extends TokenError:
-    def message = f"expected '${exp.represent}', but got '$act'"
+  case class UnexpectedToken(exp: ControlToken, act: Spanned[Char])
+      extends TokenError:
+    def message =
+      f"${act.span}: expected '${exp.represent}', but got '${act.token}'"
   case class Unreachable(msg: String = "unreachable") extends TokenError:
     def message = msg
 
@@ -93,5 +97,12 @@ case class Position(row: Int = 0, col: Int = 0):
     isEndOfMat(mat) || col >= mat(row).length
   def isEndOfMat[T](mat: Seq[Seq[T]]) = row >= mat.length
   def index[T](mat: Seq[Seq[T]]) = mat(row)(col)
+  def oneIndexed = Position(row + 1, col + 1)
 
-case class Span(val start: Position, val end: Position)
+case class Span(val start: Position, val end: Position):
+  override def toString() =
+    val (start1, end1) = (start.oneIndexed, end.oneIndexed)
+    if start1 == end1 then s"row ${start1.row}, col ${start1.col}"
+    else s"(${start1.row}, ${start1.col}) to (${end1.row}, ${end1.col})"
+
+case class Spanned[T](val token: T, val span: Span)
