@@ -2,8 +2,8 @@ class Parser(tokenizer: Tokenizer):
   def parseValue(): Either[Tokenizer.TokenError, Json] =
     tokenizer.lookAhead() match
       case Some(ControlToken.LeftBrace) => parseObject()
-      case Some(ControlToken.Quote)     => parseString()
-      case Some(ControlToken.Null)      => parseNull()
+      case Some(StringToken.Quote)      => parseString()
+      case Some(NullToken.Null0)        => parseNull()
       case _                            => throw new NotImplementedError
 
   def parseObject() =

@@ -1,66 +1,63 @@
-abstract class ControlToken(val represent: Char)
+abstract class ControlToken(val repr: Char)
 object ControlToken:
   val LEFT_BRACE = '{'
   val RIGHT_BRACE = '}'
   val COLON = ':'
   val COMMA = ','
-  val QUOTE = '"'
-  val NULL0 = 'n'
 
   case object LeftBrace extends ControlToken(LEFT_BRACE)
   case object RightBrace extends ControlToken(RIGHT_BRACE)
   case object Colon extends ControlToken(COLON)
   case object Comma extends ControlToken(COMMA)
-  case object Quote extends ControlToken(QUOTE)
-  case object Null extends ControlToken(NULL0)
 
-  def apply(represent: Char) = represent match
-    case LEFT_BRACE  => Some(LeftBrace)
-    case RIGHT_BRACE => Some(RightBrace)
-    case COLON       => Some(Colon)
-    case COMMA       => Some(Comma)
-    case QUOTE       => Some(Quote)
-    case NULL0       => Some(Null)
-    case _           => None
+  def apply(repr: Char) = repr match
+    case LEFT_BRACE        => Some(LeftBrace)
+    case RIGHT_BRACE       => Some(RightBrace)
+    case COLON             => Some(Colon)
+    case COMMA             => Some(Comma)
+    case StringToken.QUOTE => Some(StringToken.Quote)
+    case NullToken.NULL0   => Some(NullToken.Null0)
+    case _                 => None
 
 sealed trait Token:
   def span: Span
-  def represent: String
+  def repr: String
 sealed trait TokenFactory:
   type Tokenized <: Token
   def tokenize(tokenizer: Tokenizer): Either[Tokenizer.TokenError, Tokenized]
 
 case class StringToken(
-    startQuote: Spanned[ControlToken.Quote.type],
+    startQuote: Spanned[StringToken.Quote.type],
     content: String,
-    endQuote: Spanned[ControlToken.Quote.type]
+    endQuote: Spanned[StringToken.Quote.type]
 ) extends Token:
   def span = startQuote.span.merged(endQuote.span)
-  def represent =
-    startQuote.token.represent + content + endQuote.token.represent
+  def repr = startQuote.token.repr + content + endQuote.token.repr
 object StringToken extends TokenFactory:
   type Tokenized = StringToken
+  val QUOTE = '"'
+  case object Quote extends ControlToken(QUOTE)
   def tokenize(tokenizer: Tokenizer) =
     for {
-      start <- tokenizer.expect(ControlToken.Quote)
+      start <- tokenizer.expect(Quote)
       content <- tokenizer.tokenizeCharacters()
-      end <- tokenizer.expect(ControlToken.Quote)
+      end <- tokenizer.expect(Quote)
     } yield StringToken(start, content, end)
 
 case class NullToken(span: Span) extends Token:
-  def represent =
-    List(
-      ControlToken.NULL0,
-      NullToken.NULL1,
-      NullToken.NULL2,
-      NullToken.NULL3
-    ).mkString
+  def repr = List(
+    NullToken.NULL0,
+    NullToken.NULL1,
+    NullToken.NULL2,
+    NullToken.NULL3
+  ).mkString
 object NullToken extends TokenFactory:
   type Tokenized = NullToken
+  val NULL0 = 'n'
   val NULL1 = 'u'
   val NULL2 = 'l'
   val NULL3 = 'l'
-  case object Null0 extends ControlToken(ControlToken.NULL0)
+  case object Null0 extends ControlToken(NULL0)
   case object Null1 extends ControlToken(NULL1)
   case object Null2 extends ControlToken(NULL2)
   case object Null3 extends ControlToken(NULL3)
@@ -85,7 +82,7 @@ class Tokenizer(cursor: RowColIterator):
     val span = dropWhitespace().asSpan
     val actual = if next then cursor.next() else cursor.peek
     Either.cond(
-      token.represent == actual,
+      token.repr == actual,
       Spanned(token, span),
       Tokenizer.UnexpectedToken(token, Spanned(actual, span))
     )
@@ -111,7 +108,7 @@ class Tokenizer(cursor: RowColIterator):
   def tokenizeCharacters() =
     var builder = new StringBuilder()
     var escaped = false // TODO escape
-    while !escaped && expect(ControlToken.Quote, false).isLeft do
+    while !escaped && expect(StringToken.Quote, false).isLeft do
       // TODO next=true
       builder.append(cursor.next())
     Right(builder.mkString)
@@ -130,8 +127,7 @@ object Tokenizer:
     override def toString() = message
   case class UnexpectedToken(exp: ControlToken, act: Spanned[Char])
       extends TokenError:
-    def message =
-      f"${act.span}: expected '${exp.represent}', but got '${act.token}'"
+    def message = f"${act.span}: expected '${exp.repr}', but got '${act.token}'"
   case class Unreachable(msg: String = "unreachable") extends TokenError:
     def message = msg
 
