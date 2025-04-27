@@ -3,10 +3,14 @@ object ControlToken:
   val LEFT_BRACE = '{'
   val RIGHT_BRACE = '}'
   val COLON = ':'
+  val LEFT_BRACKET = '['
+  val RIGHT_BRACKET = ']'
   val COMMA = ','
 
   case object LeftBrace extends ControlToken(LEFT_BRACE)
   case object RightBrace extends ControlToken(RIGHT_BRACE)
+  case object LeftBracket extends ControlToken(LEFT_BRACKET)
+  case object RightBracket extends ControlToken(RIGHT_BRACKET)
   case object Colon extends ControlToken(COLON)
   case object Comma extends ControlToken(COMMA)
 
@@ -14,6 +18,8 @@ object ControlToken:
     case LEFT_BRACE        => Some(LeftBrace)
     case RIGHT_BRACE       => Some(RightBrace)
     case COLON             => Some(Colon)
+    case LEFT_BRACKET      => Some(LeftBracket)
+    case RIGHT_BRACKET     => Some(RightBracket)
     case COMMA             => Some(Comma)
     case StringToken.QUOTE => Some(StringToken.Quote)
     case NullToken.NULL0   => Some(NullToken.Null0)

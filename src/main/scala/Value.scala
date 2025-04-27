@@ -1,6 +1,6 @@
 enum Json:
   case ValueObject(fields: Map[String, Json])
-  case ValueArray(values: List[Json])
+  case ValueArray(values: Seq[Json])
   case ValueString(value: String)
   case ValueNumber(value: Double)
   case ValueBool(value: Boolean)
