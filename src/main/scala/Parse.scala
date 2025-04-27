@@ -34,14 +34,18 @@ class Parser(tokenizer: Tokenizer):
 
   def parseString() =
     for {
-      stringToken <- tokenizer.tokenizeString()
+      stringToken <- tokenizer.tokenize(StringToken)
     } yield Json.ValueString(stringToken.content)
 
   def parseNull() =
     for {
-      _ <- tokenizer.tokenizeNull()
+      _ <- tokenizer.tokenize(NullToken)
     } yield Json.ValueNull
 
 object Parser:
   def apply(target: String) =
-    new Parser(Tokenizer(target))
+    new Parser(
+      new Tokenizer(
+        new RowColIterator(target.linesIterator.toSeq.map(_.toSeq))
+      )
+    )

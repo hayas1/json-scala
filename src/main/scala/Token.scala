@@ -91,6 +91,8 @@ class Tokenizer(cursor: RowColIterator):
     dropWhitespace()
     ControlToken(cursor.peek)
 
+  def tokenize[T <: TokenFactory](factory: T) = factory.tokenize(this)
+
   def punctuated[T](punctuator: ControlToken, terminator: ControlToken)(
       f: => T
   ) =
@@ -103,8 +105,6 @@ class Tokenizer(cursor: RowColIterator):
     // TODO trailing commas
     for { _ <- expect(terminator) } yield seq
 
-  def tokenizeString() =
-    StringToken.tokenize(this)
   def tokenizeCharacters() =
     var builder = new StringBuilder()
     var escaped = false // TODO escape
@@ -113,15 +113,7 @@ class Tokenizer(cursor: RowColIterator):
       builder.append(cursor.next())
     Right(builder.mkString)
 
-  def tokenizeNull() =
-    NullToken.tokenize(this)
-
 object Tokenizer:
-  def apply(target: String) =
-    new Tokenizer(
-      new RowColIterator(target.linesIterator.toSeq.map(_.toSeq))
-    )
-
   sealed trait TokenError:
     def message: String
     override def toString() = message
