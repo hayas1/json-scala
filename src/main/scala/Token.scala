@@ -22,8 +22,6 @@ object ControlToken:
     case _           => None
 
 class Tokenizer(cursor: RowColIterator):
-  def nextChar() = cursor.next()
-
   def dropWhitespace() =
     // TODO peek after Iterator.dropWhile(_.isWhitespace) will return whitespace
     while cursor.hasNext && cursor.peek.isWhitespace do cursor.next()
@@ -54,7 +52,7 @@ class Tokenizer(cursor: RowColIterator):
     var escaped = false // TODO escape
     while !escaped && expect(ControlToken.Quote, false).isLeft do
       // TODO next=true
-      builder.append(nextChar())
+      builder.append(cursor.next())
     Right(builder.mkString)
 
 object Tokenizer:
