@@ -8,7 +8,7 @@ class TokenTest extends AnyFunSuite:
       |6
       |""".stripMargin
 
-    val tokens = RowColIterator(input.linesIterator.map(_.toList).toList)
+    val tokens = RowColIterator(input.linesIterator.map(_.toSeq).toSeq)
 
     assert(tokens.position == Position(0, 0))
     assert(tokens.peek == '\n')

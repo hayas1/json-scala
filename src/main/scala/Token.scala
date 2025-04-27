@@ -62,7 +62,7 @@ class Tokenizer(cursor: RowColIterator):
 object Tokenizer:
   def apply(target: String) =
     new Tokenizer(
-      new RowColIterator(target.linesIterator.toList.map(_.toList))
+      new RowColIterator(target.linesIterator.toSeq.map(_.toSeq))
     )
 
   sealed trait TokenError:
@@ -73,7 +73,7 @@ object Tokenizer:
   case class Unreachable(msg: String = "unreachable") extends TokenError:
     def message = msg
 
-class RowColIterator(mat: List[List[Char]], start: Position = Position())
+class RowColIterator(mat: Seq[Seq[Char]], start: Position = Position())
     extends Iterator[Char]:
   private var cursor = start
 
@@ -89,9 +89,9 @@ class RowColIterator(mat: List[List[Char]], start: Position = Position())
 case class Position(row: Int = 0, col: Int = 0):
   def nextRow = Position(row + 1, 0)
   def nextCol = Position(row, col + 1)
-  def isEndOfRow[T](mat: List[List[T]]) =
+  def isEndOfRow[T](mat: Seq[Seq[T]]) =
     isEndOfMat(mat) || col >= mat(row).length
-  def isEndOfMat[T](mat: List[List[T]]) = row >= mat.length
-  def index[T](mat: List[List[T]]) = mat(row)(col)
+  def isEndOfMat[T](mat: Seq[Seq[T]]) = row >= mat.length
+  def index[T](mat: Seq[Seq[T]]) = mat(row)(col)
 
 case class Span(val start: Position, val end: Position)
