@@ -8,12 +8,15 @@ class Parser(tokenizer: Tokenizer):
   def parse_object() =
     for {
       leftBrace <- tokenizer.expect(ControlToken.LeftBrace)
-      items = tokenizer
-        .takeUntil(ControlToken.RightBrace) { parse_object_item() }
+      items <- tokenizer
+        .punctuated(ControlToken.RightBrace, ControlToken.Comma) {
+          parse_object_item()
+        }
+    } yield Json.ValueObject(
+      items
         .collect { case Right(item) => item } // TODO filtered?
-        .foldLeft(Map.empty[String, Json]) { (map, item) => map + item }
-      rightBrace <- tokenizer.expect(ControlToken.RightBrace)
-    } yield Json.ValueObject(items)
+        .foldLeft(Map.empty) { (map, item) => map + item }
+    )
 
   def parse_object_item() =
     for {
@@ -25,10 +28,8 @@ class Parser(tokenizer: Tokenizer):
 
   def parse_string() =
     for {
-      quote <- tokenizer.expect(ControlToken.Quote)
-      value = tokenizer
-        .takeUntil(ControlToken.Quote) { tokenizer.nextChar() }
-        .mkString
+      startQuote <- tokenizer.expect(ControlToken.Quote)
+      value <- tokenizer.tokenize_string_content()
       endQuote <- tokenizer.expect(ControlToken.Quote)
     } yield Json.ValueString(value)
 

@@ -1,19 +1,23 @@
-abstract class ControlToken(represent: Char)
+import Tokenizer.UnexpectedToken
+abstract class ControlToken(val represent: Char)
 object ControlToken:
   val LEFT_BRACE = '{'
   val RIGHT_BRACE = '}'
   val COLON = ':'
+  val COMMA = ','
   val QUOTE = '"'
 
   case object LeftBrace extends ControlToken(ControlToken.LEFT_BRACE)
   case object RightBrace extends ControlToken(ControlToken.RIGHT_BRACE)
   case object Colon extends ControlToken(ControlToken.COLON)
+  case object Comma extends ControlToken(ControlToken.COMMA)
   case object Quote extends ControlToken(ControlToken.QUOTE)
 
   def apply(represent: Char) = represent match
     case LEFT_BRACE  => Some(LeftBrace)
     case RIGHT_BRACE => Some(RightBrace)
     case COLON       => Some(Colon)
+    case COMMA       => Some(Comma)
     case QUOTE       => Some(Quote)
     case _           => None
 
@@ -25,19 +29,33 @@ class Tokenizer(cursor: RowColIterator):
     while cursor.hasNext && cursor.peek.isWhitespace do cursor.next()
     cursor
 
-  def expect[T <: ControlToken](token: T) =
-    val actual = dropWhitespace().next()
+  def expect(token: ControlToken, next: Boolean = true) =
+    val actual = if next then dropWhitespace().next() else dropWhitespace().peek
     Either.cond(
       ControlToken(actual) == Some(token),
       actual,
       Tokenizer.UnexpectedToken(token, actual)
     )
 
-  def takeUntil[T <: ControlToken, U](token: T)(f: => U) =
-    var list = List[U]()
-    while cursor.hasNext && ControlToken(cursor.peek) != Some(token) do
+  def punctuated[T](terminator: ControlToken, punctuator: ControlToken)(
+      f: => T
+  ) =
+    var list = List[T]()
+    var separated = true
+    while separated && expect(terminator, false).isLeft do
       list = list :+ f
-    list
+      separated = expect(punctuator, false).isRight
+    for {
+      _ <- expect(terminator)
+    } yield list
+
+  def tokenize_string_content() =
+    var builder = new StringBuilder()
+    var escaped = false // TODO escape
+    while !escaped && expect(ControlToken.Quote, false).isLeft do
+      // TODO next=true
+      builder.append(nextChar())
+    Right(builder.mkString)
 
 object Tokenizer:
   def apply(target: String) =
@@ -49,7 +67,7 @@ object Tokenizer:
     def message: String
     override def toString() = message
   case class UnexpectedToken(exp: ControlToken, act: Char) extends TokenError:
-    def message = f"expected '$exp', but got '$act'"
+    def message = f"expected '${exp.represent}', but got '$act'"
   case class Unreachable(msg: String = "unreachable") extends TokenError:
     def message = msg
 
