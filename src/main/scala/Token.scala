@@ -81,10 +81,6 @@ class RowColIterator(mat: List[List[Char]], start: Position = Position())
 
   def peek = if cursor.isEndOfRow(mat) then '\n' else cursor.index(mat)
   def position = cursor
-  def dropWhitespace() =
-    // TODO peek after Iterator.dropWhile(_.isWhitespace) will return whitespace
-    while peek.isWhitespace do next()
-    this
 
 case class Position(row: Int = 0, col: Int = 0):
   def nextRow = Position(row + 1, 0)
