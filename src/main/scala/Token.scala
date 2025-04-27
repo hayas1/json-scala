@@ -1,9 +1,7 @@
 sealed trait Token:
   def repr: String
-sealed trait Tokenized extends Token:
-  def span: Span
 sealed trait Factory[T <: Token]:
-  def tokenize(tokenizer: Tokenizer): Either[Tokenizer.TokenError, T]
+  def tokenize(tokenizer: Tokenizer): Either[Tokenizer.TokenError, Spanned[T]]
 
 abstract class ControlToken(val represent: Char) extends Token:
   def repr = represent.toString()
@@ -23,24 +21,29 @@ given ControlFactory: Factory[ControlToken] with
   case object Comma extends ControlToken(COMMA)
 
   // TODO Only this implementation does not advance the cursor to next
-  def tokenize(tokenizer: Tokenizer) = tokenizer.lookAhead() match
-    case Spanned(LEFT_BRACE, _)          => Right(LeftBrace)
-    case Spanned(RIGHT_BRACE, _)         => Right(RightBrace)
-    case Spanned(COLON, _)               => Right(Colon)
-    case Spanned(LEFT_BRACKET, _)        => Right(LeftBracket)
-    case Spanned(RIGHT_BRACKET, _)       => Right(RightBracket)
-    case Spanned(COMMA, _)               => Right(Comma)
-    case Spanned(StringFactory.QUOTE, _) => Right(StringFactory.Quote)
-    case Spanned(NullFactory.NULL0, _)   => Right(NullFactory.Null0)
-    case Spanned(c, p) => Left(Tokenizer.UnknownControl(Spanned(c, p)))
+  def tokenize(tokenizer: Tokenizer) =
+    tokenizer.lookAhead().map {
+      _ match
+        case LEFT_BRACE          => Right(LeftBrace)
+        case RIGHT_BRACE         => Right(RightBrace)
+        case COLON               => Right(Colon)
+        case LEFT_BRACKET        => Right(LeftBracket)
+        case RIGHT_BRACKET       => Right(RightBracket)
+        case COMMA               => Right(Comma)
+        case StringFactory.QUOTE => Right(StringFactory.Quote)
+        case NullFactory.NULL0   => Right(NullFactory.Null0)
+        case c                   => Left(c)
+    } match // TODO use cats Functor ?
+      case Spanned(Right(t), pos) => Right(Spanned(t, pos))
+      case Spanned(Left(c), pos) =>
+        Left(Tokenizer.UnknownControl(Spanned(c, pos)))
 
 case class StringToken(
-    startQuote: Spanned[StringFactory.Quote.type],
+    startQuote: StringFactory.Quote.type,
     content: String,
-    endQuote: Spanned[StringFactory.Quote.type]
+    endQuote: StringFactory.Quote.type
 ) extends Token:
-  def span = startQuote.span.merged(endQuote.span)
-  def repr = startQuote.token.repr + content + endQuote.token.repr
+  def repr = startQuote.repr + content + endQuote.repr
 given StringFactory: Factory[StringToken] with
   val QUOTE = '"'
   case object Quote extends ControlToken(QUOTE)
@@ -49,9 +52,12 @@ given StringFactory: Factory[StringToken] with
       start <- tokenizer.expect(Quote)
       content <- tokenizer.tokenizeCharacters()
       end <- tokenizer.expect(Quote)
-    } yield StringToken(start, content, end)
+    } yield Spanned(
+      StringToken(start.token, content, end.token),
+      start.span.merged(end.span)
+    )
 
-case class NullToken(span: Span) extends Token:
+case class NullToken() extends Token:
   def repr = List(
     NullFactory.NULL0,
     NullFactory.NULL1,
@@ -75,7 +81,7 @@ given NullFactory: Factory[NullToken] with
       l <- tokenizer.expect(Null2)
       l <- tokenizer.expect(Null3)
       end = tokenizer.position
-    } yield NullToken(Span(start, end))
+    } yield Spanned(NullToken(), Span(start, end))
 
 class Tokenizer(cursor: RowColIterator):
   def position = cursor.position
@@ -157,7 +163,7 @@ case class Position(row: Int = 0, col: Int = 0):
 given Ordering[Position] =
   Ordering.Tuple2(Ordering.Int, Ordering.Int).on(p => (p.row, p.col))
 
-case class Span(val start: Position, val end: Position):
+case class Span(start: Position, end: Position):
   override def toString() =
     val (start1, end1) = (start.oneIndexed, end.oneIndexed)
     if start1 == end1 then s"row ${start1.row}, col ${start1.col}"
@@ -168,4 +174,5 @@ case class Span(val start: Position, val end: Position):
   )
   def spanned[T](token: T) = Spanned(token, this)
 
-case class Spanned[T](val token: T, val span: Span)
+case class Spanned[T](token: T, span: Span):
+  def map[U](f: T => U) = Spanned(f(token), span) // TODO use cats Functor ?

@@ -1,11 +1,11 @@
 class Parser(tokenizer: Tokenizer):
   def parseValue(): Either[Tokenizer.TokenError, Json] =
     tokenizer.tokenize[ControlToken]() match
-      case Right(ControlFactory.LeftBrace)   => parseObject()
-      case Right(ControlFactory.LeftBracket) => parseArray()
-      case Right(StringFactory.Quote)        => parseString()
-      case Right(NullFactory.Null0)          => parseNull()
-      case _                                 => throw new NotImplementedError
+      case Right(Spanned(ControlFactory.LeftBrace, _))   => parseObject()
+      case Right(Spanned(ControlFactory.LeftBracket, _)) => parseArray()
+      case Right(Spanned(StringFactory.Quote, _))        => parseString()
+      case Right(Spanned(NullFactory.Null0, _))          => parseNull()
+      case _ => throw new NotImplementedError
 
   def parseObject() =
     for {
@@ -54,7 +54,7 @@ class Parser(tokenizer: Tokenizer):
   def parseString() =
     for {
       stringToken <- tokenizer.tokenize[StringToken]()
-    } yield Json.ValueString(stringToken.content)
+    } yield Json.ValueString(stringToken.token.content)
 
   def parseNull() =
     for {
