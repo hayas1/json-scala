@@ -13,11 +13,16 @@ class Parser(tokenizer: Tokenizer):
         .punctuated(ControlToken.Comma, ControlToken.RightBrace) {
           parseObjectItem()
         }
-    } yield Json.ValueObject(
-      items
-        .collect { case Right(item) => item } // TODO filtered?
-        .foldLeft(Map.empty) { (map, item) => map + item }
-    )
+      objects <- items
+        .foldLeft(
+          Right(Map.empty): Either[Tokenizer.TokenError, Map[String, Json]]
+        ) { (either_map, either_item) =>
+          for {
+            map <- either_map
+            item <- either_item
+          } yield map + item
+        }
+    } yield Json.ValueObject(objects)
 
   def parseObjectItem() =
     for {
@@ -34,7 +39,7 @@ class Parser(tokenizer: Tokenizer):
 
   def parseNull() =
     for {
-      _ <- tokenizer.expect(ControlToken.Null)
+      _ <- tokenizer.tokenizeNull()
     } yield Json.ValueNull
 
 object Parser:

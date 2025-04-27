@@ -5,15 +5,14 @@ object ControlToken:
   val COLON = ':'
   val COMMA = ','
   val QUOTE = '"'
-  val NULL_START = 'n'
-  val NULL = "null"
+  val NULL0 = 'n'
 
   case object LeftBrace extends ControlToken(LEFT_BRACE)
   case object RightBrace extends ControlToken(RIGHT_BRACE)
   case object Colon extends ControlToken(COLON)
   case object Comma extends ControlToken(COMMA)
   case object Quote extends ControlToken(QUOTE)
-  case object Null extends ControlToken(NULL_START)
+  case object Null extends ControlToken(NULL0)
 
   def apply(represent: Char) = represent match
     case LEFT_BRACE  => Some(LeftBrace)
@@ -21,12 +20,16 @@ object ControlToken:
     case COLON       => Some(Colon)
     case COMMA       => Some(Comma)
     case QUOTE       => Some(Quote)
-    case NULL_START  => Some(Null)
+    case NULL0       => Some(Null)
     case _           => None
 
 sealed trait Token:
   def span: Span
   def represent: String
+sealed trait TokenFactory:
+  type Tokenized <: Token
+  def tokenize(tokenizer: Tokenizer): Either[Tokenizer.TokenError, Tokenized]
+
 case class StringToken(
     startQuote: Spanned[ControlToken.Quote.type],
     content: String,
@@ -35,10 +38,44 @@ case class StringToken(
   def span = startQuote.span.merged(endQuote.span)
   def represent =
     startQuote.token.represent + content + endQuote.token.represent
+object StringToken extends TokenFactory:
+  type Tokenized = StringToken
+  def tokenize(tokenizer: Tokenizer) =
+    for {
+      start <- tokenizer.expect(ControlToken.Quote)
+      content <- tokenizer.tokenizeCharacters()
+      end <- tokenizer.expect(ControlToken.Quote)
+    } yield StringToken(start, content, end)
+
 case class NullToken(span: Span) extends Token:
-  def represent = ControlToken.NULL
+  def represent =
+    List(
+      ControlToken.NULL0,
+      NullToken.NULL1,
+      NullToken.NULL2,
+      NullToken.NULL3
+    ).mkString
+object NullToken extends TokenFactory:
+  type Tokenized = NullToken
+  val NULL1 = 'u'
+  val NULL2 = 'l'
+  val NULL3 = 'l'
+  case object Null0 extends ControlToken(ControlToken.NULL0)
+  case object Null1 extends ControlToken(NULL1)
+  case object Null2 extends ControlToken(NULL2)
+  case object Null3 extends ControlToken(NULL3)
+  def tokenize(tokenizer: Tokenizer) =
+    val start = tokenizer.dropWhitespace()
+    for {
+      _ <- tokenizer.expect(Null0)
+      _ <- tokenizer.expect(Null1)
+      _ <- tokenizer.expect(Null2)
+      _ <- tokenizer.expect(Null3)
+      end = tokenizer.position
+    } yield NullToken(Span(start, end))
 
 class Tokenizer(cursor: RowColIterator):
+  def position = cursor.position
   def dropWhitespace() =
     // TODO peek after Iterator.dropWhile(_.isWhitespace) will return whitespace
     while cursor.hasNext && cursor.peek.isWhitespace do cursor.next()
@@ -48,7 +85,7 @@ class Tokenizer(cursor: RowColIterator):
     val span = dropWhitespace().asSpan
     val actual = if next then cursor.next() else cursor.peek
     Either.cond(
-      ControlToken(actual) == Some(token),
+      token.represent == actual,
       Spanned(token, span),
       Tokenizer.UnexpectedToken(token, Spanned(actual, span))
     )
@@ -63,18 +100,14 @@ class Tokenizer(cursor: RowColIterator):
     var seq = Seq[T]()
     var separated = true
     while separated && expect(terminator, false).isLeft do
-      seq = seq :+ f
+      seq = seq :+ f // TODO early return
       separated = expect(punctuator, false).isRight
-    for {
-      _ <- expect(terminator)
-    } yield seq
+      if separated then for { _ <- expect(punctuator) } yield ()
+    // TODO trailing commas
+    for { _ <- expect(terminator) } yield seq
 
   def tokenizeString() =
-    for {
-      start <- expect(ControlToken.Quote)
-      content <- tokenizeCharacters()
-      end <- expect(ControlToken.Quote)
-    } yield StringToken(start, content, end)
+    StringToken.tokenize(this)
   def tokenizeCharacters() =
     var builder = new StringBuilder()
     var escaped = false // TODO escape
@@ -82,6 +115,9 @@ class Tokenizer(cursor: RowColIterator):
       // TODO next=true
       builder.append(cursor.next())
     Right(builder.mkString)
+
+  def tokenizeNull() =
+    NullToken.tokenize(this)
 
 object Tokenizer:
   def apply(target: String) =

@@ -16,3 +16,28 @@ class ParseTest extends AnyFunSuite:
       json == Right(Json.ValueObject(Map("hello" -> Json.ValueString("world"))))
     )
   }
+
+  test("object consisted of string and null") {
+    val input = """{"hello": "world", "null": null}""".stripMargin
+    val json = Json.parse(input)
+
+    assert(
+      json == Right(
+        Json.ValueObject(
+          Map(
+            "hello" -> Json.ValueString("world"),
+            "null" -> Json.ValueNull
+          )
+        )
+      )
+    )
+  }
+
+  test("invalid object structure") {
+    val input = """{"hello": "world" "null": null}""".stripMargin
+    val json = Json.parse(input)
+
+    assert(
+      json.left.get.message == "row 1, col 19: expected '}', but got '\"'"
+    )
+  }
