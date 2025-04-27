@@ -3,7 +3,8 @@ class Parser(tokenizer: Tokenizer):
     tokenizer.lookAhead() match
       case Some(ControlToken.LeftBrace) => parseObject()
       case Some(ControlToken.Quote)     => parseString()
-      case _                            => Right(Json.ValueNull)
+      case Some(ControlToken.Null)      => parseNull()
+      case _                            => throw new NotImplementedError
 
   def parseObject() =
     for {
@@ -28,10 +29,13 @@ class Parser(tokenizer: Tokenizer):
 
   def parseString() =
     for {
-      startQuote <- tokenizer.expect(ControlToken.Quote)
-      value <- tokenizer.tokenizeStringContent()
-      endQuote <- tokenizer.expect(ControlToken.Quote)
-    } yield Json.ValueString(value)
+      stringToken <- tokenizer.tokenizeString()
+    } yield Json.ValueString(stringToken.content)
+
+  def parseNull() =
+    for {
+      _ <- tokenizer.expect(ControlToken.Null)
+    } yield Json.ValueNull
 
 object Parser:
   def apply(target: String) =

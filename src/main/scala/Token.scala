@@ -1,4 +1,3 @@
-import Tokenizer.UnexpectedToken
 abstract class ControlToken(val represent: Char)
 object ControlToken:
   val LEFT_BRACE = '{'
@@ -6,12 +5,15 @@ object ControlToken:
   val COLON = ':'
   val COMMA = ','
   val QUOTE = '"'
+  val NULL_START = 'n'
+  val NULL = "null"
 
-  case object LeftBrace extends ControlToken(ControlToken.LEFT_BRACE)
-  case object RightBrace extends ControlToken(ControlToken.RIGHT_BRACE)
-  case object Colon extends ControlToken(ControlToken.COLON)
-  case object Comma extends ControlToken(ControlToken.COMMA)
-  case object Quote extends ControlToken(ControlToken.QUOTE)
+  case object LeftBrace extends ControlToken(LEFT_BRACE)
+  case object RightBrace extends ControlToken(RIGHT_BRACE)
+  case object Colon extends ControlToken(COLON)
+  case object Comma extends ControlToken(COMMA)
+  case object Quote extends ControlToken(QUOTE)
+  case object Null extends ControlToken(NULL_START)
 
   def apply(represent: Char) = represent match
     case LEFT_BRACE  => Some(LeftBrace)
@@ -19,7 +21,22 @@ object ControlToken:
     case COLON       => Some(Colon)
     case COMMA       => Some(Comma)
     case QUOTE       => Some(Quote)
+    case NULL_START  => Some(Null)
     case _           => None
+
+sealed trait Token:
+  def span: Span
+  def represent: String
+case class StringToken(
+    startQuote: Spanned[ControlToken.Quote.type],
+    content: String,
+    endQuote: Spanned[ControlToken.Quote.type]
+) extends Token:
+  def span = startQuote.span.merged(endQuote.span)
+  def represent =
+    startQuote.token.represent + content + endQuote.token.represent
+case class NullToken(span: Span) extends Token:
+  def represent = ControlToken.NULL
 
 class Tokenizer(cursor: RowColIterator):
   def dropWhitespace() =
@@ -27,14 +44,13 @@ class Tokenizer(cursor: RowColIterator):
     while cursor.hasNext && cursor.peek.isWhitespace do cursor.next()
     cursor.position
 
-  def expect(token: ControlToken, next: Boolean = true) =
-    val pos = dropWhitespace()
-    val actual =
-      Spanned(if next then cursor.next() else cursor.peek, Span(pos, pos))
+  def expect[T <: ControlToken](token: T, next: Boolean = true) =
+    val span = dropWhitespace().asSpan
+    val actual = if next then cursor.next() else cursor.peek
     Either.cond(
-      ControlToken(actual.token) == Some(token),
-      actual,
-      Tokenizer.UnexpectedToken(token, actual)
+      ControlToken(actual) == Some(token),
+      Spanned(token, span),
+      Tokenizer.UnexpectedToken(token, Spanned(actual, span))
     )
 
   def lookAhead() =
@@ -53,7 +69,13 @@ class Tokenizer(cursor: RowColIterator):
       _ <- expect(terminator)
     } yield seq
 
-  def tokenizeStringContent() =
+  def tokenizeString() =
+    for {
+      start <- expect(ControlToken.Quote)
+      content <- tokenizeCharacters()
+      end <- expect(ControlToken.Quote)
+    } yield StringToken(start, content, end)
+  def tokenizeCharacters() =
     var builder = new StringBuilder()
     var escaped = false // TODO escape
     while !escaped && expect(ControlToken.Quote, false).isLeft do
@@ -98,11 +120,19 @@ case class Position(row: Int = 0, col: Int = 0):
   def isEndOfMat[T](mat: Seq[Seq[T]]) = row >= mat.length
   def index[T](mat: Seq[Seq[T]]) = mat(row)(col)
   def oneIndexed = Position(row + 1, col + 1)
+  def asSpan = Span(this, this)
+given Ordering[Position] =
+  Ordering.Tuple2(Ordering.Int, Ordering.Int).on(p => (p.row, p.col))
 
 case class Span(val start: Position, val end: Position):
   override def toString() =
     val (start1, end1) = (start.oneIndexed, end.oneIndexed)
     if start1 == end1 then s"row ${start1.row}, col ${start1.col}"
     else s"(${start1.row}, ${start1.col}) to (${end1.row}, ${end1.col})"
+  def merged(other: Span) = Span(
+    implicitly[Ordering[Position]].min(start, other.start),
+    implicitly[Ordering[Position]].max(end, other.end)
+  )
+  def spanned[T](token: T) = Spanned(token, this)
 
 case class Spanned[T](val token: T, val span: Span)
