@@ -51,7 +51,7 @@ class Tokenizer(cursor: RowColIterator):
       _ <- expect(terminator)
     } yield seq
 
-  def tokenize_string_content() =
+  def tokenizeStringContent() =
     var builder = new StringBuilder()
     var escaped = false // TODO escape
     while !escaped && expect(ControlToken.Quote, false).isLeft do

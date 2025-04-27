@@ -15,4 +15,4 @@ enum Json:
 
 object Json:
   def parse(input: String) =
-    Parser(input).parse_value()
+    Parser(input).parseValue()
