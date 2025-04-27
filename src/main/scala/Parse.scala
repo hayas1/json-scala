@@ -1,17 +1,17 @@
 class Parser(tokenizer: Tokenizer):
   def parseValue(): Either[Tokenizer.TokenError, Json] =
-    tokenizer.lookAhead() match
-      case Some(ControlToken.LeftBrace)   => parseObject()
-      case Some(ControlToken.LeftBracket) => parseArray()
-      case Some(StringToken.Quote)        => parseString()
-      case Some(NullToken.Null0)          => parseNull()
-      case _                              => throw new NotImplementedError
+    tokenizer.tokenize[ControlToken]() match
+      case Right(ControlFactory.LeftBrace)   => parseObject()
+      case Right(ControlFactory.LeftBracket) => parseArray()
+      case Right(StringFactory.Quote)        => parseString()
+      case Right(NullFactory.Null0)          => parseNull()
+      case _                                 => throw new NotImplementedError
 
   def parseObject() =
     for {
-      leftBrace <- tokenizer.expect(ControlToken.LeftBrace)
+      leftBrace <- tokenizer.expect(ControlFactory.LeftBrace)
       items <- tokenizer
-        .punctuated(ControlToken.Comma, ControlToken.RightBrace) {
+        .punctuated(ControlFactory.Comma, ControlFactory.RightBrace) {
           parseObjectItem()
         }
       obj <- items
@@ -29,15 +29,15 @@ class Parser(tokenizer: Tokenizer):
     for {
       keySource <- parseString()
       key <- keySource.asString.toRight(Tokenizer.Unreachable())
-      colon <- tokenizer.expect(ControlToken.Colon)
+      colon <- tokenizer.expect(ControlFactory.Colon)
       value <- parseValue()
     } yield (key, value)
 
   def parseArray() =
     for {
-      leftBracket <- tokenizer.expect(ControlToken.LeftBracket)
+      leftBracket <- tokenizer.expect(ControlFactory.LeftBracket)
       items <- tokenizer
-        .punctuated(ControlToken.Comma, ControlToken.RightBracket) {
+        .punctuated(ControlFactory.Comma, ControlFactory.RightBracket) {
           parseValue()
         }
       arr <- items
@@ -53,12 +53,12 @@ class Parser(tokenizer: Tokenizer):
 
   def parseString() =
     for {
-      stringToken <- tokenizer.tokenize(StringToken)
+      stringToken <- tokenizer.tokenize[StringToken]()
     } yield Json.ValueString(stringToken.content)
 
   def parseNull() =
     for {
-      _ <- tokenizer.tokenize(NullToken)
+      nullToken <- tokenizer.tokenize[NullToken]()
     } yield Json.ValueNull
 
 object Parser:

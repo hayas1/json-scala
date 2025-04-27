@@ -1,5 +1,11 @@
+sealed trait Token:
+  def span: Span
+  def repr: String
+sealed trait Factory[T]:
+  def tokenize(tokenizer: Tokenizer): Either[Tokenizer.TokenError, T]
+
 abstract class ControlToken(val repr: Char)
-object ControlToken:
+given ControlFactory: Factory[ControlToken] with
   val LEFT_BRACE = '{'
   val RIGHT_BRACE = '}'
   val COLON = ':'
@@ -14,33 +20,26 @@ object ControlToken:
   case object Colon extends ControlToken(COLON)
   case object Comma extends ControlToken(COMMA)
 
-  def apply(repr: Char) = repr match
-    case LEFT_BRACE        => Some(LeftBrace)
-    case RIGHT_BRACE       => Some(RightBrace)
-    case COLON             => Some(Colon)
-    case LEFT_BRACKET      => Some(LeftBracket)
-    case RIGHT_BRACKET     => Some(RightBracket)
-    case COMMA             => Some(Comma)
-    case StringToken.QUOTE => Some(StringToken.Quote)
-    case NullToken.NULL0   => Some(NullToken.Null0)
-    case _                 => None
-
-sealed trait Token:
-  def span: Span
-  def repr: String
-sealed trait TokenFactory:
-  type Tokenized <: Token
-  def tokenize(tokenizer: Tokenizer): Either[Tokenizer.TokenError, Tokenized]
+  // TODO only this implementation has no side effects
+  def tokenize(tokenizer: Tokenizer) = tokenizer.lookAhead() match
+    case Spanned(LEFT_BRACE, _)          => Right(LeftBrace)
+    case Spanned(RIGHT_BRACE, _)         => Right(RightBrace)
+    case Spanned(COLON, _)               => Right(Colon)
+    case Spanned(LEFT_BRACKET, _)        => Right(LeftBracket)
+    case Spanned(RIGHT_BRACKET, _)       => Right(RightBracket)
+    case Spanned(COMMA, _)               => Right(Comma)
+    case Spanned(StringFactory.QUOTE, _) => Right(StringFactory.Quote)
+    case Spanned(NullFactory.NULL0, _)   => Right(NullFactory.Null0)
+    case Spanned(char, p) => Left(Tokenizer.UnknownControl(Spanned(char, p)))
 
 case class StringToken(
-    startQuote: Spanned[StringToken.Quote.type],
+    startQuote: Spanned[StringFactory.Quote.type],
     content: String,
-    endQuote: Spanned[StringToken.Quote.type]
+    endQuote: Spanned[StringFactory.Quote.type]
 ) extends Token:
   def span = startQuote.span.merged(endQuote.span)
   def repr = startQuote.token.repr + content + endQuote.token.repr
-object StringToken extends TokenFactory:
-  type Tokenized = StringToken
+given StringFactory: Factory[StringToken] with
   val QUOTE = '"'
   case object Quote extends ControlToken(QUOTE)
   def tokenize(tokenizer: Tokenizer) =
@@ -52,13 +51,12 @@ object StringToken extends TokenFactory:
 
 case class NullToken(span: Span) extends Token:
   def repr = List(
-    NullToken.NULL0,
-    NullToken.NULL1,
-    NullToken.NULL2,
-    NullToken.NULL3
+    NullFactory.NULL0,
+    NullFactory.NULL1,
+    NullFactory.NULL2,
+    NullFactory.NULL3
   ).mkString
-object NullToken extends TokenFactory:
-  type Tokenized = NullToken
+given NullFactory: Factory[NullToken] with
   val NULL0 = 'n'
   val NULL1 = 'u'
   val NULL2 = 'l'
@@ -70,10 +68,10 @@ object NullToken extends TokenFactory:
   def tokenize(tokenizer: Tokenizer) =
     val start = tokenizer.dropWhitespace()
     for {
-      _ <- tokenizer.expect(Null0)
-      _ <- tokenizer.expect(Null1)
-      _ <- tokenizer.expect(Null2)
-      _ <- tokenizer.expect(Null3)
+      n <- tokenizer.expect(Null0)
+      u <- tokenizer.expect(Null1)
+      l <- tokenizer.expect(Null2)
+      l <- tokenizer.expect(Null3)
       end = tokenizer.position
     } yield NullToken(Span(start, end))
 
@@ -94,10 +92,11 @@ class Tokenizer(cursor: RowColIterator):
     )
 
   def lookAhead() =
-    dropWhitespace()
-    ControlToken(cursor.peek)
+    val span = dropWhitespace().asSpan
+    Spanned(cursor.peek, span)
 
-  def tokenize[T <: TokenFactory](factory: T) = factory.tokenize(this)
+  def tokenize[T]()(using Factory[T]) =
+    summon[Factory[T]].tokenize(this)
 
   def punctuated[T](punctuator: ControlToken, terminator: ControlToken)(
       f: => T
@@ -114,7 +113,7 @@ class Tokenizer(cursor: RowColIterator):
   def tokenizeCharacters() =
     var builder = new StringBuilder()
     var escaped = false // TODO escape
-    while !escaped && expect(StringToken.Quote, false).isLeft do
+    while !escaped && expect(StringFactory.Quote, false).isLeft do
       // TODO next=true
       builder.append(cursor.next())
     Right(builder.mkString)
@@ -128,6 +127,8 @@ object Tokenizer:
     def message = f"${act.span}: expected '${exp.repr}', but got '${act.token}'"
   case class Unreachable(msg: String = "unreachable") extends TokenError:
     def message = msg
+  case class UnknownControl(act: Spanned[Char]) extends TokenError:
+    def message = f"${act.span}: unknown control token '${act.token}'"
 
 class RowColIterator(mat: Seq[Seq[Char]], start: Position = Position())
     extends Iterator[Char]:
@@ -160,8 +161,8 @@ case class Span(val start: Position, val end: Position):
     if start1 == end1 then s"row ${start1.row}, col ${start1.col}"
     else s"(${start1.row}, ${start1.col}) to (${end1.row}, ${end1.col})"
   def merged(other: Span) = Span(
-    implicitly[Ordering[Position]].min(start, other.start),
-    implicitly[Ordering[Position]].max(end, other.end)
+    summon[Ordering[Position]].min(start, other.start),
+    summon[Ordering[Position]].max(end, other.end)
   )
   def spanned[T](token: T) = Spanned(token, this)
 
