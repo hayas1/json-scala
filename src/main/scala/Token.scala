@@ -37,17 +37,17 @@ class Tokenizer(cursor: RowColIterator):
       Tokenizer.UnexpectedToken(token, actual)
     )
 
-  def punctuated[T](terminator: ControlToken, punctuator: ControlToken)(
+  def punctuated[T](punctuator: ControlToken, terminator: ControlToken)(
       f: => T
   ) =
-    var list = List[T]()
+    var seq = Seq[T]()
     var separated = true
     while separated && expect(terminator, false).isLeft do
-      list = list :+ f
+      seq = seq :+ f
       separated = expect(punctuator, false).isRight
     for {
       _ <- expect(terminator)
-    } yield list
+    } yield seq
 
   def tokenize_string_content() =
     var builder = new StringBuilder()

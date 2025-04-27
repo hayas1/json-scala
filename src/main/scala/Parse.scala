@@ -9,7 +9,7 @@ class Parser(tokenizer: Tokenizer):
     for {
       leftBrace <- tokenizer.expect(ControlToken.LeftBrace)
       items <- tokenizer
-        .punctuated(ControlToken.RightBrace, ControlToken.Comma) {
+        .punctuated(ControlToken.Comma, ControlToken.RightBrace) {
           parse_object_item()
         }
     } yield Json.ValueObject(
