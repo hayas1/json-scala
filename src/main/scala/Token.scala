@@ -1,10 +1,12 @@
 sealed trait Token:
-  def span: Span
   def repr: String
-sealed trait Factory[T]:
+sealed trait Tokenized extends Token:
+  def span: Span
+sealed trait Factory[T <: Token]:
   def tokenize(tokenizer: Tokenizer): Either[Tokenizer.TokenError, T]
 
-abstract class ControlToken(val repr: Char)
+abstract class ControlToken(val represent: Char) extends Token:
+  def repr = represent.toString()
 given ControlFactory: Factory[ControlToken] with
   val LEFT_BRACE = '{'
   val RIGHT_BRACE = '}'
@@ -20,7 +22,7 @@ given ControlFactory: Factory[ControlToken] with
   case object Colon extends ControlToken(COLON)
   case object Comma extends ControlToken(COMMA)
 
-  // TODO only this implementation has no side effects
+  // TODO Only this implementation does not advance the cursor to next
   def tokenize(tokenizer: Tokenizer) = tokenizer.lookAhead() match
     case Spanned(LEFT_BRACE, _)          => Right(LeftBrace)
     case Spanned(RIGHT_BRACE, _)         => Right(RightBrace)
@@ -30,7 +32,7 @@ given ControlFactory: Factory[ControlToken] with
     case Spanned(COMMA, _)               => Right(Comma)
     case Spanned(StringFactory.QUOTE, _) => Right(StringFactory.Quote)
     case Spanned(NullFactory.NULL0, _)   => Right(NullFactory.Null0)
-    case Spanned(char, p) => Left(Tokenizer.UnknownControl(Spanned(char, p)))
+    case Spanned(c, p) => Left(Tokenizer.UnknownControl(Spanned(c, p)))
 
 case class StringToken(
     startQuote: Spanned[StringFactory.Quote.type],
@@ -86,7 +88,7 @@ class Tokenizer(cursor: RowColIterator):
     val span = dropWhitespace().asSpan
     val actual = if next then cursor.next() else cursor.peek
     Either.cond(
-      token.repr == actual,
+      token.represent == actual,
       Spanned(token, span),
       Tokenizer.UnexpectedToken(token, Spanned(actual, span))
     )
@@ -95,7 +97,7 @@ class Tokenizer(cursor: RowColIterator):
     val span = dropWhitespace().asSpan
     Spanned(cursor.peek, span)
 
-  def tokenize[T]()(using Factory[T]) =
+  def tokenize[T <: Token]()(using Factory[T]) =
     summon[Factory[T]].tokenize(this)
 
   def punctuated[T](punctuator: ControlToken, terminator: ControlToken)(
