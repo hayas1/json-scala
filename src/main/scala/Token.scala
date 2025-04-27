@@ -35,6 +35,10 @@ class Tokenizer(cursor: RowColIterator):
       Tokenizer.UnexpectedToken(token, actual)
     )
 
+  def lookAhead() =
+    dropWhitespace()
+    ControlToken(cursor.peek)
+
   def punctuated[T](punctuator: ControlToken, terminator: ControlToken)(
       f: => T
   ) =

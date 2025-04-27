@@ -1,6 +1,6 @@
 class Parser(tokenizer: Tokenizer):
   def parse_value(): Either[Tokenizer.TokenError, Json] =
-    ControlToken(tokenizer.dropWhitespace().peek) match
+    tokenizer.lookAhead() match
       case Some(ControlToken.LeftBrace) => parse_object()
       case Some(ControlToken.Quote)     => parse_string()
       case _                            => Right(Json.ValueNull)
