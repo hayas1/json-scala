@@ -48,14 +48,15 @@ given StringFactory: Factory[StringToken] with
   val QUOTE = '"'
   case object Quote extends ControlToken(QUOTE)
   def tokenize(tokenizer: Tokenizer) =
-    for {
-      start <- tokenizer.expect(Quote)
-      content <- tokenizer.tokenizeCharacters()
-      end <- tokenizer.expect(Quote)
-    } yield Spanned(
-      StringToken(start.token, content, end.token),
-      start.span.merged(end.span)
-    )
+    tokenizer.scope { tz =>
+      for {
+        start <- tz.expect(Quote)
+        content <- tz.tokenizeCharacters()
+        end <- tz.expect(Quote)
+      } yield StringToken(start.token, content, end.token)
+    } match // TODO use cats Functor ?
+      case Spanned(Right(t), pos) => Right(Spanned(t, pos))
+      case Spanned(Left(e), _)    => Left(e)
 
 case class NullToken() extends Token:
   def repr = List(
@@ -74,21 +75,28 @@ given NullFactory: Factory[NullToken] with
   case object Null2 extends ControlToken(NULL2)
   case object Null3 extends ControlToken(NULL3)
   def tokenize(tokenizer: Tokenizer) =
-    val start = tokenizer.dropWhitespace()
-    for {
-      n <- tokenizer.expect(Null0)
-      u <- tokenizer.expect(Null1)
-      l <- tokenizer.expect(Null2)
-      l <- tokenizer.expect(Null3)
-      end = tokenizer.position
-    } yield Spanned(NullToken(), Span(start, end))
+    tokenizer.scope { tz =>
+      for {
+        n <- tokenizer.expect(Null0)
+        u <- tokenizer.expect(Null1)
+        l <- tokenizer.expect(Null2)
+        l <- tokenizer.expect(Null3)
+      } yield NullToken()
+    } match // TODO use cats Functor ?
+      case Spanned(Right(t), pos) => Right(Spanned(t, pos))
+      case Spanned(Left(e), _)    => Left(e)
 
 class Tokenizer(cursor: RowColIterator):
-  def position = cursor.position
   def dropWhitespace() =
     // TODO peek after Iterator.dropWhile(_.isWhitespace) will return whitespace
     while cursor.hasNext && cursor.peek.isWhitespace do cursor.next()
     cursor.position
+
+  def scope[T](f: Tokenizer => T) =
+    val start = dropWhitespace()
+    val result = f(this)
+    val end = cursor.position
+    Spanned(result, Span(start, end))
 
   def expect[T <: ControlToken](token: T, next: Boolean = true) =
     val span = dropWhitespace().asSpan
