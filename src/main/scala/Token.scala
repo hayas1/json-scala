@@ -1,3 +1,8 @@
+import cats.{Functor, Traverse, Applicative, Eval}
+import cats.syntax.functor.*
+import cats.syntax.traverse.*
+import cats.syntax.applicative.*
+
 sealed trait Token:
   def repr: String
 sealed trait Factory[T <: Token]:
@@ -22,21 +27,23 @@ given ControlFactory: Factory[ControlToken] with
 
   // TODO Only this implementation does not advance the cursor to next
   def tokenize(tokenizer: Tokenizer) =
-    tokenizer.lookAhead().map {
-      _ match
-        case LEFT_BRACE          => Right(LeftBrace)
-        case RIGHT_BRACE         => Right(RightBrace)
-        case COLON               => Right(Colon)
-        case LEFT_BRACKET        => Right(LeftBracket)
-        case RIGHT_BRACKET       => Right(RightBracket)
-        case COMMA               => Right(Comma)
-        case StringFactory.QUOTE => Right(StringFactory.Quote)
-        case NullFactory.NULL0   => Right(NullFactory.Null0)
-        case c                   => Left(c)
-    } match // TODO use cats Functor ?
+    tokenizer
+      .lookAhead()
+      .map {
+        _ match
+          case LEFT_BRACE          => Right(LeftBrace)
+          case RIGHT_BRACE         => Right(RightBrace)
+          case COLON               => Right(Colon)
+          case LEFT_BRACKET        => Right(LeftBracket)
+          case RIGHT_BRACKET       => Right(RightBracket)
+          case COMMA               => Right(Comma)
+          case StringFactory.QUOTE => Right(StringFactory.Quote)
+          case NullFactory.NULL0   => Right(NullFactory.Null0)
+          case c                   => Left(c)
+      } match // TODO how to use cats in this case ?
       case Spanned(Right(t), pos) => Right(Spanned(t, pos))
       case Spanned(Left(c), pos) =>
-        Left(Tokenizer.UnknownControl(Spanned(c, pos)))
+        Left(Spanned(c, pos)).left.map(Tokenizer.UnknownControl.apply)
 
 case class StringToken(
     startQuote: StringFactory.Quote.type,
@@ -54,9 +61,7 @@ given StringFactory: Factory[StringToken] with
         content <- tz.tokenizeCharacters()
         end <- tz.expect(Quote)
       } yield StringToken(start.token, content, end.token)
-    } match // TODO use cats Functor ?
-      case Spanned(Right(t), pos) => Right(Spanned(t, pos))
-      case Spanned(Left(e), _)    => Left(e)
+    }.sequence
 
 case class NullToken() extends Token:
   def repr = List(
@@ -82,9 +87,7 @@ given NullFactory: Factory[NullToken] with
         l <- tokenizer.expect(Null2)
         l <- tokenizer.expect(Null3)
       } yield NullToken()
-    } match // TODO use cats Functor ?
-      case Spanned(Right(t), pos) => Right(Spanned(t, pos))
-      case Spanned(Left(e), _)    => Left(e)
+    }.sequence
 
 class Tokenizer(cursor: RowColIterator):
   def dropWhitespace() =
@@ -182,5 +185,15 @@ case class Span(start: Position, end: Position):
   )
   def spanned[T](token: T) = Spanned(token, this)
 
-case class Spanned[T](token: T, span: Span):
-  def map[U](f: T => U) = Spanned(f(token), span) // TODO use cats Functor ?
+case class Spanned[T](token: T, span: Span)
+given Traverse[Spanned] with
+  def traverse[G[_], A, B](fa: Spanned[A])(
+      f: A => G[B]
+  )(using G: Applicative[G]): G[Spanned[B]] =
+    G.map(f(fa.token))(b => Spanned(b, fa.span))
+  def foldLeft[A, B](fa: Spanned[A], b: B)(f: (B, A) => B): B =
+    f(b, fa.token)
+  def foldRight[A, B](fa: Spanned[A], lb: Eval[B])(
+      f: (A, Eval[B]) => Eval[B]
+  ): Eval[B] =
+    f(fa.token, lb)
