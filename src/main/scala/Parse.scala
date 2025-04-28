@@ -1,4 +1,7 @@
-class Parser[T, V <: Visitor[Json]](tokenizer: Tokenizer):
+import cats.syntax.functor.*
+import cats.syntax.traverse.*
+
+class Parser[T, V <: Visitor[Json]](tokenizer: Tokenizer): // TODO Json -> Json
   def parseValue(visitor: V): Either[Tokenizer.TokenError, Json] =
     tokenizer.tokenize[ControlToken]() match
       case Right(Spanned(ControlFactory.LeftBrace, _))   => parseObject(visitor)
@@ -14,21 +17,12 @@ class Parser[T, V <: Visitor[Json]](tokenizer: Tokenizer):
         .punctuated(ControlFactory.Comma, ControlFactory.RightBrace) {
           parseObjectItem(visitor)
         }
-      obj <- items
-        .foldLeft(
-          Right(Map.empty): Either[Tokenizer.TokenError, Map[String, Json]]
-        ) { (either_map, either_item) =>
-          for {
-            map <- either_map
-            item <- either_item
-          } yield map + item
-        }
-    } yield Json.ValueObject(obj)
+      obj <- items.sequence
+    } yield visitor.visit_object(obj)
 
   def parseObjectItem(visitor: V) =
     for {
-      keySource <- parseString(visitor)
-      key <- keySource.asString.toRight(Tokenizer.Unreachable())
+      key <- parseString(visitor)
       colon <- tokenizer.expect(ControlFactory.Colon)
       value <- parseValue(visitor)
     } yield (key, value)
@@ -40,26 +34,18 @@ class Parser[T, V <: Visitor[Json]](tokenizer: Tokenizer):
         .punctuated(ControlFactory.Comma, ControlFactory.RightBracket) {
           parseValue(visitor)
         }
-      arr <- items
-        .foldLeft(
-          Right(Seq.empty): Either[Tokenizer.TokenError, Seq[Json]]
-        ) { (either_seq, either_item) =>
-          for {
-            list <- either_seq
-            item <- either_item
-          } yield list :+ item
-        }
-    } yield Json.ValueArray(arr)
+      arr <- items.sequence
+    } yield visitor.visit_array(arr)
 
   def parseString(visitor: V) =
     for {
       stringToken <- tokenizer.tokenize[StringToken]()
-    } yield Json.ValueString(stringToken.token.content)
+    } yield visitor.visit_string(stringToken.token.content)
 
   def parseNull(visitor: V) =
     for {
       nullToken <- tokenizer.tokenize[NullToken]()
-    } yield Json.ValueNull
+    } yield visitor.visit_null()
 
 object Parser:
   def apply(target: String) =

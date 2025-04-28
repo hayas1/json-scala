@@ -18,9 +18,14 @@ object Json:
     Parser(input).parseValue(visitor)
 
 given Visitor[Json] with
-  def visit_object(fields: Seq[(String, Json)]) = Json.ValueObject(fields.toMap)
+  def visit_object(items: Seq[(Json, Json)]) =
+    Json.ValueObject(
+      items
+        .map((k, v) => k.asString.get -> v)
+        .toMap
+    )
   def visit_array(values: Seq[Json]) = Json.ValueArray(values)
-  def visit_string(value: String) = Json.ValueString(value)
-  def visit_number(value: Double) = Json.ValueNumber(value)
-  def visit_bool(value: Boolean) = Json.ValueBool(value)
+  def visit_string(string: String) = Json.ValueString(string)
+  def visit_number(number: Double) = Json.ValueNumber(number)
+  def visit_bool(bool: Boolean) = Json.ValueBool(bool)
   def visit_null() = Json.ValueNull
