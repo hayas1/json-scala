@@ -1,18 +1,18 @@
-class Parser(tokenizer: Tokenizer):
-  def parseValue(): Either[Tokenizer.TokenError, Json] =
+class Parser[T, V <: Visitor[Json]](tokenizer: Tokenizer):
+  def parseValue(visitor: V): Either[Tokenizer.TokenError, Json] =
     tokenizer.tokenize[ControlToken]() match
-      case Right(Spanned(ControlFactory.LeftBrace, _))   => parseObject()
-      case Right(Spanned(ControlFactory.LeftBracket, _)) => parseArray()
-      case Right(Spanned(StringFactory.Quote, _))        => parseString()
-      case Right(Spanned(NullFactory.Null0, _))          => parseNull()
+      case Right(Spanned(ControlFactory.LeftBrace, _))   => parseObject(visitor)
+      case Right(Spanned(ControlFactory.LeftBracket, _)) => parseArray(visitor)
+      case Right(Spanned(StringFactory.Quote, _))        => parseString(visitor)
+      case Right(Spanned(NullFactory.Null0, _))          => parseNull(visitor)
       case _ => throw new NotImplementedError
 
-  def parseObject() =
+  def parseObject(visitor: V) =
     for {
       leftBrace <- tokenizer.expect(ControlFactory.LeftBrace)
       items <- tokenizer
         .punctuated(ControlFactory.Comma, ControlFactory.RightBrace) {
-          parseObjectItem()
+          parseObjectItem(visitor)
         }
       obj <- items
         .foldLeft(
@@ -25,20 +25,20 @@ class Parser(tokenizer: Tokenizer):
         }
     } yield Json.ValueObject(obj)
 
-  def parseObjectItem() =
+  def parseObjectItem(visitor: V) =
     for {
-      keySource <- parseString()
+      keySource <- parseString(visitor)
       key <- keySource.asString.toRight(Tokenizer.Unreachable())
       colon <- tokenizer.expect(ControlFactory.Colon)
-      value <- parseValue()
+      value <- parseValue(visitor)
     } yield (key, value)
 
-  def parseArray() =
+  def parseArray(visitor: V) =
     for {
       leftBracket <- tokenizer.expect(ControlFactory.LeftBracket)
       items <- tokenizer
         .punctuated(ControlFactory.Comma, ControlFactory.RightBracket) {
-          parseValue()
+          parseValue(visitor)
         }
       arr <- items
         .foldLeft(
@@ -51,12 +51,12 @@ class Parser(tokenizer: Tokenizer):
         }
     } yield Json.ValueArray(arr)
 
-  def parseString() =
+  def parseString(visitor: V) =
     for {
       stringToken <- tokenizer.tokenize[StringToken]()
     } yield Json.ValueString(stringToken.token.content)
 
-  def parseNull() =
+  def parseNull(visitor: V) =
     for {
       nullToken <- tokenizer.tokenize[NullToken]()
     } yield Json.ValueNull
