@@ -18,13 +18,11 @@ object Json:
     Parser(input).parseValue(visitor)
 
 given Visitor[Json] with
-  def visit_object(items: Seq[(Json, Json)]) =
-    Json.ValueObject(
-      items
-        .map((k, v) => k.asString.get -> v)
-        .toMap
-    )
-  def visit_array(values: Seq[Json]) = Json.ValueArray(values)
+  type Key = String
+  type Value = Json
+  def visit_object(items: Seq[(Key, Value)]) =
+    Json.ValueObject(items.map((k, v) => k -> v).toMap)
+  def visit_array(values: Seq[Value]) = Json.ValueArray(values.toSeq)
   def visit_string(string: String) = Json.ValueString(string)
   def visit_number(number: Double) = Json.ValueNumber(number)
   def visit_bool(bool: Boolean) = Json.ValueBool(bool)
