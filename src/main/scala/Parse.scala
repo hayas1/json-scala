@@ -29,7 +29,7 @@ class Parser[V <: Visitor](tokenizer: Tokenizer):
           } yield (key, value)
         }
       obj <- items.sequence
-    } yield visitor.visit_object(obj)
+    } yield visitor.visitObject(obj)
 
   def parseArray[T](using visitor: V[T], vv: Visitor[visitor.Value]) =
     val arrayParser = new Parser(tokenizer)
@@ -40,17 +40,17 @@ class Parser[V <: Visitor](tokenizer: Tokenizer):
           arrayParser.parseValue[visitor.Value]
         }
       arr <- items.sequence
-    } yield visitor.visit_array(arr)
+    } yield visitor.visitArray(arr)
 
   def parseString[T](using visitor: V[T]) =
     for {
       stringToken <- tokenizer.tokenize[StringToken]()
-    } yield visitor.visit_string(stringToken.token.content)
+    } yield visitor.visitString(stringToken.token.content)
 
   def parseNull[T](using visitor: V[T]) =
     for {
       nullToken <- tokenizer.tokenize[NullToken]()
-    } yield visitor.visit_null()
+    } yield visitor.visitNull()
 
 object Parser:
   def apply(target: String) =
