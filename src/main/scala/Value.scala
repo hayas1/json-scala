@@ -14,8 +14,11 @@ enum Json:
     case _                  => None
 
 object Json:
-  def parse(input: String)(using visitor: Visitor[Json]) =
-    Parser(input).parseValue(visitor)
+  def parse(input: String)(using
+      visitor: Visitor[Json],
+      kv: Visitor[visitor.Key],
+      vv: Visitor[visitor.Value]
+  ) = Parser(input).parseValue[Json]
 
 given Visitor[Json] with
   type Key = String
