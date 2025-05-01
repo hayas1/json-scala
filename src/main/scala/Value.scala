@@ -1,17 +1,17 @@
 enum Json:
-  case ValueObject(fields: Map[String, Json])
+  case ValueObject(items: Map[String, Json])
   case ValueArray(values: Seq[Json])
-  case ValueString(value: String)
-  case ValueNumber(value: Double)
-  case ValueBool(value: Boolean)
+  case ValueString(string: String)
+  case ValueNumber(number: Double)
+  case ValueBool(bool: Boolean)
   case ValueNull
 
   def isNull(): Boolean = this match
     case ValueNull => true
     case _         => false
   def asString: Option[String] = this match
-    case ValueString(value) => Some(value)
-    case _                  => None
+    case ValueString(string) => Some(string)
+    case _                   => None
 
 object Json:
   def parse(input: String)(using Visitor[Json]) = Parser(input).parseValue()
