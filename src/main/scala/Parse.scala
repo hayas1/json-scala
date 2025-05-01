@@ -4,37 +4,42 @@ import cats.syntax.traverse.*
 class Parser(val tokenizer: Tokenizer):
   def parseValue[T, V <: Visitor]()(using
       visitor: V[T]
-  ): Either[Tokenizer.TokenError, T] =
-    tokenizer.tokenize[ControlToken]() match
-      case Right(Spanned(ControlFactory.LeftBrace, _))   => parseObject()
-      case Right(Spanned(ControlFactory.LeftBracket, _)) => parseArray()
-      case Right(Spanned(StringFactory.Quote, _))        => parseString()
-      case Right(Spanned(NullFactory.Null0, _))          => parseNull()
-      case _ => throw new NotImplementedError
-
+  ): Either[Parser.ParserError, T] =
+    for {
+      control <- tokenizer.tokenize[ControlToken]()
+      value <- control match
+        case Spanned(ControlFactory.LeftBrace, _)   => parseObject()
+        case Spanned(ControlFactory.LeftBracket, _) => parseArray()
+        case Spanned(StringFactory.Quote, _)        => parseString()
+        case Spanned(NullFactory.Null0, _)          => parseNull()
+        case Spanned(token, span) =>
+          Left(Tokenizer.UnknownControl(Spanned(token.represent, span)))
+    } yield value
   def parseObject[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       leftBrace <- tokenizer.expect(ControlFactory.LeftBrace)
-      obj = visitor.visitObject(ObjectAccessor(this))
+      obj <- visitor.visitObject(ObjectAccessor(this))
       rightBrace <- tokenizer.expect(ControlFactory.RightBrace)
     } yield obj
 
   def parseArray[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       leftBracket <- tokenizer.expect(ControlFactory.LeftBracket)
-      arr = visitor.visitArray(ArrayAccessor(this))
+      arr <- visitor.visitArray(ArrayAccessor(this))
       rightBracket <- tokenizer.expect(ControlFactory.RightBracket)
     } yield arr
 
   def parseString[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       stringToken <- tokenizer.tokenize[StringToken]()
-    } yield visitor.visitString(stringToken.token.content)
+      string <- visitor.visitString(stringToken.token.content)
+    } yield string
 
   def parseNull[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       nullToken <- tokenizer.tokenize[NullToken]()
-    } yield visitor.visitNull()
+      nullValue <- visitor.visitNull()
+    } yield nullValue
 
 object Parser:
   def apply(target: String) =
@@ -43,6 +48,7 @@ object Parser:
         new RowColIterator(target.linesIterator.toSeq.map(_.toSeq))
       )
     )
+  trait ParserError extends Throwable
 
 class ObjectAccessor(parser: Parser):
   def punctuator = ControlFactory.Comma
