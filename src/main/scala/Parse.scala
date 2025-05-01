@@ -2,36 +2,36 @@ import cats.syntax.functor.*
 import cats.syntax.traverse.*
 
 class Parser(val tokenizer: Tokenizer):
-  def parseValue[T, V <: Visitor](
+  def parseValue[T, V <: Visitor]()(using
       visitor: V[T]
   ): Either[Tokenizer.TokenError, T] =
     tokenizer.tokenize[ControlToken]() match
-      case Right(Spanned(ControlFactory.LeftBrace, _))   => parseObject(visitor)
-      case Right(Spanned(ControlFactory.LeftBracket, _)) => parseArray(visitor)
-      case Right(Spanned(StringFactory.Quote, _))        => parseString(visitor)
-      case Right(Spanned(NullFactory.Null0, _))          => parseNull(visitor)
+      case Right(Spanned(ControlFactory.LeftBrace, _))   => parseObject()
+      case Right(Spanned(ControlFactory.LeftBracket, _)) => parseArray()
+      case Right(Spanned(StringFactory.Quote, _))        => parseString()
+      case Right(Spanned(NullFactory.Null0, _))          => parseNull()
       case _ => throw new NotImplementedError
 
-  def parseObject[T, V <: Visitor](visitor: V[T]) =
+  def parseObject[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       leftBrace <- tokenizer.expect(ControlFactory.LeftBrace)
       obj = visitor.visitObject(ObjectAccessor(this))
       rightBrace <- tokenizer.expect(ControlFactory.RightBrace)
     } yield obj
 
-  def parseArray[T, V <: Visitor](visitor: V[T]) =
+  def parseArray[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       leftBracket <- tokenizer.expect(ControlFactory.LeftBracket)
       arr = visitor.visitArray(ArrayAccessor(this))
       rightBracket <- tokenizer.expect(ControlFactory.RightBracket)
     } yield arr
 
-  def parseString[T, V <: Visitor](visitor: V[T]) =
+  def parseString[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       stringToken <- tokenizer.tokenize[StringToken]()
     } yield visitor.visitString(stringToken.token.content)
 
-  def parseNull[T, V <: Visitor](visitor: V[T]) =
+  def parseNull[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       nullToken <- tokenizer.tokenize[NullToken]()
     } yield visitor.visitNull()
@@ -49,21 +49,21 @@ class ObjectAccessor(parser: Parser):
   def terminator = ControlFactory.RightBrace
 
   def hasNextItem = parser.tokenizer.expect(terminator, false).isLeft
-  def nextKey[K](visitor: Visitor[K]) = for {
-    key <- parser.parseString(visitor)
+  def nextKey[K](using visitor: Visitor[K]) = for {
+    key <- parser.parseString()
     colon <- parser.tokenizer.expect(ControlFactory.Colon)
   } yield key
-  def nextValue[V](visitor: Visitor[V]) = for {
-    value <- parser.parseValue(visitor)
+  def nextValue[V](using visitor: Visitor[V]) = for {
+    value <- parser.parseValue()
     comma <- parser.tokenizer.trailingPunctuator(punctuator, terminator)
   } yield value
 
   // TODO toMap, toList, toSeq, etc ?
-  def toIter[K, V](kv: Visitor[K], vv: Visitor[V]) = new Iterator[(K, V)]:
+  def toIter[K, V](using kv: Visitor[K], vv: Visitor[V]) = new Iterator[(K, V)]:
     def hasNext = hasNextItem
     def next() = (for {
-      key <- nextKey(kv)
-      value <- nextValue(vv)
+      key <- nextKey[K]
+      value <- nextValue[V]
     } yield (key, value)).getOrElse(throw new RuntimeException)
 
 class ArrayAccessor(parser: Parser):
@@ -71,12 +71,12 @@ class ArrayAccessor(parser: Parser):
   def terminator = ControlFactory.RightBracket
 
   def hasNextValue = parser.tokenizer.expect(terminator, false).isLeft
-  def nextValue[V](visitor: Visitor[V]) = for {
-    value <- parser.parseValue(visitor)
+  def nextValue[V](using visitor: Visitor[V]) = for {
+    value <- parser.parseValue()
     comma <- parser.tokenizer.trailingPunctuator(punctuator, terminator)
   } yield value
 
   // TODO toList, toSeq, etc ?
-  def toIter[V](vv: Visitor[V]) = new Iterator[V]:
+  def toIter[V](using vv: Visitor[V]) = new Iterator[V]:
     def hasNext = hasNextValue
-    def next() = nextValue(vv).getOrElse(throw new RuntimeException)
+    def next() = nextValue.getOrElse(throw new RuntimeException)
