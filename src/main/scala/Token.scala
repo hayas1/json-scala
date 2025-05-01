@@ -6,7 +6,7 @@ import cats.syntax.applicative.*
 sealed trait Token:
   def repr: String
 sealed trait Factory[T <: Token]:
-  def tokenize(tokenizer: Tokenizer): Either[Tokenizer.TokenError, Spanned[T]]
+  def tokenize(tokenizer: Tokenizer): Either[TokenizeError, Spanned[T]]
 
 abstract class ControlToken(val represent: Char) extends Token:
   def repr = represent.toString()
@@ -43,7 +43,7 @@ given ControlFactory: Factory[ControlToken] with
       } match // TODO how to use cats in this case ?
       case Spanned(Right(t), pos) => Right(Spanned(t, pos))
       case Spanned(Left(c), pos) =>
-        Left(Spanned(c, pos)).left.map(Tokenizer.UnknownControl.apply)
+        Left(Spanned(c, pos)).left.map(TokenizeError.UnknownControl.apply)
 
 case class StringToken(
     startQuote: StringFactory.Quote.type,
@@ -107,7 +107,7 @@ class Tokenizer(cursor: RowColIterator):
     Either.cond(
       token.represent == actual,
       Spanned(token, span),
-      Tokenizer.UnexpectedToken(token, Spanned(actual, span))
+      TokenizeError.UnexpectedToken(token, Spanned(actual, span))
     )
 
   def lookAhead() =
@@ -130,16 +130,17 @@ class Tokenizer(cursor: RowColIterator):
       builder.append(cursor.next())
     Right(builder.mkString)
 
-object Tokenizer:
-  sealed trait TokenError extends Parser.ParserError:
-    def message: String
-    override def toString() = message
+sealed trait TokenizeError extends Parser.ParserError:
+  def message: String
+  override def toString() = message
+
+object TokenizeError:
   case class UnexpectedToken(exp: ControlToken, act: Spanned[Char])
-      extends TokenError:
+      extends TokenizeError:
     def message = f"${act.span}: expected '${exp.repr}', but got '${act.token}'"
-  case class Unreachable(msg: String = "unreachable") extends TokenError:
+  case class Unreachable(msg: String = "unreachable") extends TokenizeError:
     def message = msg
-  case class UnknownControl(act: Spanned[Char]) extends TokenError:
+  case class UnknownControl(act: Spanned[Char]) extends TokenizeError:
     def message = f"${act.span}: unknown control token '${act.token}'"
 
 class RowColIterator(mat: Seq[Seq[Char]], start: Position = Position())

@@ -4,7 +4,7 @@ import cats.syntax.traverse.*
 class Parser(val tokenizer: Tokenizer):
   def parseValue[T, V <: Visitor]()(using
       visitor: V[T]
-  ): Either[Parser.ParserError, T] =
+  ): Either[ParseError, T] =
     for {
       control <- tokenizer.tokenize[ControlToken]()
       value <- control match
@@ -13,7 +13,7 @@ class Parser(val tokenizer: Tokenizer):
         case Spanned(StringFactory.Quote, _)        => parseString()
         case Spanned(NullFactory.Null0, _)          => parseNull()
         case Spanned(token, span) =>
-          Left(Tokenizer.UnknownControl(Spanned(token.represent, span)))
+          Left(TokenizeError.UnknownControl(Spanned(token.represent, span)))
     } yield value
   def parseObject[T, V <: Visitor]()(using visitor: V[T]) =
     for {
@@ -48,7 +48,8 @@ object Parser:
         new RowColIterator(target.linesIterator.toSeq.map(_.toSeq))
       )
     )
-  trait ParserError extends Throwable
+
+trait ParseError extends Throwable
 
 class ObjectAccessor(parser: Parser):
   def punctuator = ControlFactory.Comma
