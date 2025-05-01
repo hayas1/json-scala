@@ -14,14 +14,13 @@ enum Json:
     case _                  => None
 
 object Json:
-  def parse(input: String)(
-      visitor: Visitor[Json]
-  ) = Parser(input).parseValue(visitor)
+  def parse(input: String) = Parser(input).parseValue(summon[Visitor[Json]])
 
 given Visitor[Json] with
   def visitObject(items: ObjectAccessor) =
-    Json.ValueObject(items.map((k, v) => k -> v).toMap)
-  def visitArray(values: ArrayAccessor) = Json.ValueArray(values.toSeq)
+    Json.ValueObject(items.toIter(summon[Visitor[String]], this).toMap)
+  def visitArray(values: ArrayAccessor) =
+    Json.ValueArray(values.toIter(this).toSeq)
   def visitString(string: String) = Json.ValueString(string)
   def visitNumber(number: Double) = Json.ValueNumber(number)
   def visitBool(bool: Boolean) = Json.ValueBool(bool)

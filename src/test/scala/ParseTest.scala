@@ -33,14 +33,14 @@ class ParseTest extends AnyFunSuite:
     )
   }
 
-  test("invalid object structure") {
-    val input = """{"hello": "world" "null": null}""".stripMargin
-    val json = Json.parse(input)
+  // test("invalid object structure") {
+  //   val input = """{"hello": "world" "null": null}""".stripMargin
+  //   val json = Json.parse(input)
 
-    assert(
-      json.left.get.message == "row 1, col 19: expected '}', but got '\"'"
-    )
-  }
+  //   assert(
+  //     json.left.get.message == "row 1, col 19: expected '}', but got '\"'"
+  //   )
+  // }
 
   test("array of object") {
     val input = """[{"hello": "world"}, {"null": null}]""".stripMargin

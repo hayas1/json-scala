@@ -129,6 +129,17 @@ class Tokenizer(cursor: RowColIterator):
     // TODO trailing commas
     for { _ <- expect(terminator) } yield seq
 
+  def trailingPunctuator(punctuator: ControlToken, terminator: ControlToken) =
+    // TODO
+    // , => ok
+    // , } => ng
+    // } => ok
+    // other => ng
+
+    val separated = expect(punctuator, false).isRight // TODO expect candidate
+    if separated then for { p <- expect(punctuator) } yield p
+    else for { t <- expect(terminator, false) } yield t
+
   def tokenizeCharacters() =
     var builder = new StringBuilder()
     var escaped = false // TODO escape
