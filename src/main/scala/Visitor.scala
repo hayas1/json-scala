@@ -1,13 +1,20 @@
 trait Visitor[T]:
-  type Key
-  type Value
-
-  def visitObject(items: Seq[(Key, Value)]): T
-  def visitArray(values: Seq[Value]): T
+  def visitObject(items: ObjectAccessor): T
+  def visitArray(values: ArrayAccessor): T
   def visitString(string: String): T
   def visitNumber(number: Double): T
   def visitBool(bool: Boolean): T
   def visitNull(): T
+
+class ObjectAccessor(parser: Parser):
+  def nextKey[K](visitor: Visitor[K]): K =
+    parser.parseString(visitor).getOrElse(throw new NotImplementedError)
+  def nextValue[V](visitor: Visitor[V]): V =
+    parser.parseValue(visitor).getOrElse(throw new NotImplementedError)
+
+class ArrayAccessor(parser: Parser):
+  def nextValue[V](visitor: Visitor[V]): V =
+    parser.parseValue(visitor).getOrElse(throw new NotImplementedError)
 
 given Visitor[String] with
   type Key = Unit
