@@ -117,18 +117,6 @@ class Tokenizer(cursor: RowColIterator):
   def tokenize[T <: Token]()(using Factory[T]) =
     summon[Factory[T]].tokenize(this)
 
-  def punctuated[T](punctuator: ControlToken, terminator: ControlToken)(
-      f: => T
-  ) =
-    var seq = Seq[T]()
-    var separated = true
-    while separated && expect(terminator, false).isLeft do
-      seq = seq :+ f // TODO early return
-      separated = expect(punctuator, false).isRight
-      if separated then for { _ <- expect(punctuator) } yield ()
-    // TODO trailing commas
-    for { _ <- expect(terminator) } yield seq
-
   def trailingPunctuator(punctuator: ControlToken, terminator: ControlToken) =
     val separated = expect(punctuator, false).isRight
     if separated then for { p <- expect(punctuator) } yield p
