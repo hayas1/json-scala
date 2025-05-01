@@ -130,13 +130,7 @@ class Tokenizer(cursor: RowColIterator):
     for { _ <- expect(terminator) } yield seq
 
   def trailingPunctuator(punctuator: ControlToken, terminator: ControlToken) =
-    // TODO
-    // , => ok
-    // , } => ng
-    // } => ok
-    // other => ng
-
-    val separated = expect(punctuator, false).isRight // TODO expect candidate
+    val separated = expect(punctuator, false).isRight
     if separated then for { p <- expect(punctuator) } yield p
     else for { t <- expect(terminator, false) } yield t
 
