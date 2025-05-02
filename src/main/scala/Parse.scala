@@ -1,6 +1,9 @@
 import cats.syntax.functor.*
 import cats.syntax.traverse.*
 
+def parseJson[T](input: String)(using visitor: Visitor[T]) =
+  Parser(input).parseValue()(using visitor)
+
 class Parser(val tokenizer: Tokenizer):
   def parseValue[T, V <: Visitor]()(using
       visitor: V[T]

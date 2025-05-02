@@ -9,6 +9,14 @@ enum Json:
   case ValueBool(bool: Boolean)
   case ValueNull
 
+  def valueType = this match
+    case ValueObject(_) => ValueType.Object
+    case ValueArray(_)  => ValueType.Array
+    case ValueString(_) => ValueType.String
+    case ValueNumber(_) => ValueType.Number
+    case ValueBool(_)   => ValueType.Bool
+    case ValueNull      => ValueType.Null
+
   def isNull(): Boolean = this match
     case ValueNull => true
     case _         => false
@@ -16,19 +24,32 @@ enum Json:
     case ValueString(string) => Some(string)
     case _                   => None
 
-object Json:
-  def parse(input: String)(using Visitor[Json]) = Parser(input).parseValue()
+enum ValueType:
+  case Object
+  case Array
+  case String
+  case Number
+  case Bool
+  case Null
 
 given Visitor[Json] with
-  def visitObject(accessor: ObjectAccessor) =
+  def expectType = List(
+    ValueType.Object,
+    ValueType.Array,
+    ValueType.String,
+    ValueType.Number,
+    ValueType.Bool,
+    ValueType.Null
+  )
+  override def visitObject(accessor: ObjectAccessor) =
     (for {
       pairs <- accessor.pairs[String, Json].toList.sequence
     } yield Json.ValueObject(pairs.toMap)).left.map(VisitorError.Custom(_))
-  def visitArray(accessor: ArrayAccessor) =
+  override def visitArray(accessor: ArrayAccessor) =
     (for {
       elements <- accessor.elements.toList.sequence
     } yield Json.ValueArray(elements)).left.map(VisitorError.Custom(_))
-  def visitString(string: String) = Right(Json.ValueString(string))
-  def visitNumber(number: Double) = Right(Json.ValueNumber(number))
-  def visitBool(bool: Boolean) = Right(Json.ValueBool(bool))
-  def visitNull() = Right(Json.ValueNull)
+  override def visitString(string: String) = Right(Json.ValueString(string))
+  override def visitNumber(number: Double) = Right(Json.ValueNumber(number))
+  override def visitBool(bool: Boolean) = Right(Json.ValueBool(bool))
+  override def visitNull() = Right(Json.ValueNull)

@@ -1,10 +1,17 @@
 trait Visitor[T]:
-  def visitObject(accessor: ObjectAccessor): Either[VisitorError, T]
-  def visitArray(accessor: ArrayAccessor): Either[VisitorError, T]
-  def visitString(string: String): Either[VisitorError, T]
-  def visitNumber(number: Double): Either[VisitorError, T]
-  def visitBool(bool: Boolean): Either[VisitorError, T]
-  def visitNull(): Either[VisitorError, T]
+  def expectType: List[ValueType]
+  def visitObject(accessor: ObjectAccessor): Either[VisitorError, T] =
+    Left(VisitorError.MissMatchType(expectType, ValueType.Object))
+  def visitArray(accessor: ArrayAccessor): Either[VisitorError, T] =
+    Left(VisitorError.MissMatchType(expectType, ValueType.Array))
+  def visitString(string: String): Either[VisitorError, T] =
+    Left(VisitorError.MissMatchType(expectType, ValueType.String))
+  def visitNumber(number: Double): Either[VisitorError, T] =
+    Left(VisitorError.MissMatchType(expectType, ValueType.Number))
+  def visitBool(bool: Boolean): Either[VisitorError, T] =
+    Left(VisitorError.MissMatchType(expectType, ValueType.Bool))
+  def visitNull(): Either[VisitorError, T] =
+    Left(VisitorError.MissMatchType(expectType, ValueType.Null))
 
 sealed trait VisitorError extends ParseError:
   def message: String
@@ -12,25 +19,12 @@ sealed trait VisitorError extends ParseError:
 object VisitorError:
   case class Custom[E](msg: E) extends VisitorError:
     def message = msg.toString()
-  case class MissMatchType(exp: String, act: String) extends VisitorError:
-    // TODO get expected class from Visitor type parameter
-    // TODO act: String -> enum ?
-    def message = f"cannot parse $exp as $act"
+  case class MissMatchType(exp: List[ValueType], act: ValueType)
+      extends VisitorError:
+    def message =
+      val or = exp.map(_.toString).mkString(" or ")
+      f"cannot parse $act as $or"
 
 given Visitor[String] with
-  def visitObject(accessor: ObjectAccessor) = Left(
-    VisitorError.MissMatchType("String", "Object")
-  )
-  def visitArray(accessor: ArrayAccessor) = Left(
-    VisitorError.MissMatchType("String", "Array")
-  )
-  def visitString(string: String) = Right(string)
-  def visitNumber(number: Double) = Left(
-    VisitorError.MissMatchType("String", "Number")
-  )
-  def visitBool(bool: Boolean) = Left(
-    VisitorError.MissMatchType("String", "Bool")
-  )
-  def visitNull() = Left(
-    VisitorError.MissMatchType("String", "Null")
-  )
+  def expectType = List(ValueType.String)
+  override def visitString(string: String) = Right(string)

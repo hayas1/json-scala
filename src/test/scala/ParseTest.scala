@@ -3,14 +3,14 @@ import org.scalatest.funsuite.AnyFunSuite
 class ParseTest extends AnyFunSuite:
   test("null is null") {
     val input = """null"""
-    val json = Json.parse(input)
+    val json = parseJson[Json](input)
 
     assert(json == Right(Json.ValueNull))
   }
 
   test("object consisted of string") {
     val input = """{"hello": "world"}""".stripMargin
-    val json = Json.parse(input)
+    val json = parseJson[Json](input)
 
     assert(
       json == Right(Json.ValueObject(Map("hello" -> Json.ValueString("world"))))
@@ -19,7 +19,7 @@ class ParseTest extends AnyFunSuite:
 
   test("object consisted of string and null") {
     val input = """{"hello": "world", "null": null}""".stripMargin
-    val json = Json.parse(input)
+    val json = parseJson[Json](input)
 
     assert(
       json == Right(
@@ -35,7 +35,7 @@ class ParseTest extends AnyFunSuite:
 
   test("invalid object structure") {
     val input = """{"hello": "world" "null": null}""".stripMargin
-    val json = Json.parse(input)
+    val json = parseJson[Json](input)
 
     assert(
       json.left.get.toString == "row 1, col 19: expected '}', but got '\"'"
@@ -44,7 +44,7 @@ class ParseTest extends AnyFunSuite:
 
   test("array of object") {
     val input = """[{"hello": "world"}, {"null": null}]""".stripMargin
-    val json = Json.parse(input)
+    val json = parseJson[Json](input)
 
     assert(
       json == Right(
