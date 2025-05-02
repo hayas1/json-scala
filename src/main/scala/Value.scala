@@ -20,13 +20,13 @@ object Json:
   def parse(input: String)(using Visitor[Json]) = Parser(input).parseValue()
 
 given Visitor[Json] with
-  def visitObject(members: ObjectAccessor) =
+  def visitObject(accessor: ObjectAccessor) =
     (for {
-      pairs <- members.pairs[String, Json].toList.sequence
+      pairs <- accessor.pairs[String, Json].toList.sequence
     } yield Json.ValueObject(pairs.toMap)).left.map(VisitorError.Custom(_))
-  def visitArray(elements: ArrayAccessor) =
+  def visitArray(accessor: ArrayAccessor) =
     (for {
-      elements <- elements.elements.toList.sequence
+      elements <- accessor.elements.toList.sequence
     } yield Json.ValueArray(elements)).left.map(VisitorError.Custom(_))
   def visitString(string: String) = Right(Json.ValueString(string))
   def visitNumber(number: Double) = Right(Json.ValueNumber(number))

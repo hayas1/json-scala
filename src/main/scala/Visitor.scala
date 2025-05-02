@@ -1,6 +1,6 @@
 trait Visitor[T]:
-  def visitObject(members: ObjectAccessor): Either[VisitorError, T]
-  def visitArray(elements: ArrayAccessor): Either[VisitorError, T]
+  def visitObject(accessor: ObjectAccessor): Either[VisitorError, T]
+  def visitArray(accessor: ArrayAccessor): Either[VisitorError, T]
   def visitString(string: String): Either[VisitorError, T]
   def visitNumber(number: Double): Either[VisitorError, T]
   def visitBool(bool: Boolean): Either[VisitorError, T]
@@ -18,10 +18,10 @@ object VisitorError:
     def message = f"cannot parse $exp as $act"
 
 given Visitor[String] with
-  def visitObject(members: ObjectAccessor) = Left(
+  def visitObject(accessor: ObjectAccessor) = Left(
     VisitorError.MissMatchType("String", "Object")
   )
-  def visitArray(elements: ArrayAccessor) = Left(
+  def visitArray(accessor: ArrayAccessor) = Left(
     VisitorError.MissMatchType("String", "Array")
   )
   def visitString(string: String) = Right(string)
