@@ -1,6 +1,6 @@
 enum Json:
-  case ValueObject(items: Map[String, Json])
-  case ValueArray(values: Seq[Json])
+  case ValueObject(members: Map[String, Json])
+  case ValueArray(elements: Seq[Json])
   case ValueString(string: String)
   case ValueNumber(number: Double)
   case ValueBool(bool: Boolean)
@@ -17,11 +17,11 @@ object Json:
   def parse(input: String)(using Visitor[Json]) = Parser(input).parseValue()
 
 given Visitor[Json] with
-  def visitObject(items: ObjectAccessor) = Right(
-    Json.ValueObject(items.toIter[String, Json].toMap)
+  def visitObject(members: ObjectAccessor) = Right(
+    Json.ValueObject(members.toIter[String, Json].toMap)
   )
-  def visitArray(values: ArrayAccessor) = Right(
-    Json.ValueArray(values.toIter.toSeq)
+  def visitArray(elements: ArrayAccessor) = Right(
+    Json.ValueArray(elements.toIter.toSeq)
   )
   def visitString(string: String) = Right(Json.ValueString(string))
   def visitNumber(number: Double) = Right(Json.ValueNumber(number))
