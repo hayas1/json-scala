@@ -6,7 +6,7 @@ trait Visitor[T]:
   def visitBool(bool: Boolean): Either[VisitorError, T]
   def visitNull(): Either[VisitorError, T]
 
-sealed trait VisitorError extends Parser.ParserError:
+sealed trait VisitorError extends ParseError:
   def message: String
   override def toString() = message
 object VisitorError:

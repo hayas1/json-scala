@@ -62,7 +62,7 @@ class ObjectAccessor(parser: Parser):
   } yield key
   def nextValue[V](using visitor: Visitor[V]) = for {
     value <- parser.parseValue()
-    comma <- parser.tokenizer.trailingPunctuator(punctuator, terminator)
+    comma <- parser.tokenizer.noTrailingPunctuator(punctuator, terminator)
   } yield value
 
   // TODO toMap, toList, toSeq, etc ?
@@ -80,7 +80,7 @@ class ArrayAccessor(parser: Parser):
   def hasNextValue = parser.tokenizer.expect(terminator, false).isLeft
   def nextValue[V](using visitor: Visitor[V]) = for {
     value <- parser.parseValue()
-    comma <- parser.tokenizer.trailingPunctuator(punctuator, terminator)
+    comma <- parser.tokenizer.noTrailingPunctuator(punctuator, terminator)
   } yield value
 
   // TODO toList, toSeq, etc ?

@@ -117,7 +117,7 @@ class Tokenizer(cursor: RowColIterator):
   def tokenize[T <: Token]()(using Factory[T]) =
     summon[Factory[T]].tokenize(this)
 
-  def trailingPunctuator(punctuator: ControlToken, terminator: ControlToken) =
+  def noTrailingPunctuator(punctuator: ControlToken, terminator: ControlToken) =
     val separated = expect(punctuator, false).isRight
     if separated then for { p <- expect(punctuator) } yield p
     else for { t <- expect(terminator, false) } yield t
@@ -130,7 +130,7 @@ class Tokenizer(cursor: RowColIterator):
       builder.append(cursor.next())
     Right(builder.mkString)
 
-sealed trait TokenizeError extends Parser.ParserError:
+sealed trait TokenizeError extends ParseError:
   def message: String
   override def toString() = message
 
