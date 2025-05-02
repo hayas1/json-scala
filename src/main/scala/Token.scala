@@ -125,6 +125,7 @@ class Tokenizer(cursor: RowColIterator):
   def tokenizeCharacters() =
     var builder = new StringBuilder()
     var escaped = false // TODO escape
+    // TODO expect will skip whitespace
     while !escaped && expect(StringFactory.Quote, false).isLeft do
       // TODO next=true
       builder.append(cursor.next())
