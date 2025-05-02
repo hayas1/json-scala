@@ -1,3 +1,6 @@
+import cats.syntax.traverse.*
+import cats.instances.list.*
+
 enum Json:
   case ValueObject(members: Map[String, Json])
   case ValueArray(elements: Seq[Json])
@@ -17,12 +20,14 @@ object Json:
   def parse(input: String)(using Visitor[Json]) = Parser(input).parseValue()
 
 given Visitor[Json] with
-  def visitObject(members: ObjectAccessor) = Right(
-    Json.ValueObject(members.toIter[String, Json].toMap)
-  )
-  def visitArray(elements: ArrayAccessor) = Right(
-    Json.ValueArray(elements.toIter.toSeq)
-  )
+  def visitObject(members: ObjectAccessor) =
+    (for {
+      pairs <- members.pairs[String, Json].toList.sequence
+    } yield Json.ValueObject(pairs.toMap)).left.map(VisitorError.Custom(_))
+  def visitArray(elements: ArrayAccessor) =
+    (for {
+      elements <- elements.elements.toList.sequence
+    } yield Json.ValueArray(elements)).left.map(VisitorError.Custom(_))
   def visitString(string: String) = Right(Json.ValueString(string))
   def visitNumber(number: Double) = Right(Json.ValueNumber(number))
   def visitBool(bool: Boolean) = Right(Json.ValueBool(bool))

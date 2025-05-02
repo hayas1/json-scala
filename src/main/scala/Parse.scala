@@ -68,14 +68,14 @@ class ObjectAccessor(parser: Parser):
       comma <- parser.tokenizer.noTrailingPunctuator(punctuator, terminator)
     } yield value
 
-  // TODO toMap, toList, toSeq, etc ?
-  def toIter[N, V](using kv: Visitor[N], vv: Visitor[V]) = new Iterator[(N, V)]:
-    def hasNext = hasNextPair
-    def next() =
-      (for { // TODO invalid json such like {"name" "value"}
-        name <- nextName[N]()
-        value <- nextValue[V]()
-      } yield (name, value)).getOrElse(throw new RuntimeException)
+  def pairs[N, V](using nv: Visitor[N], vv: Visitor[V]) =
+    new Iterator[Either[ParseError, (N, V)]]:
+      def hasNext = hasNextPair
+      def next() =
+        (for { // TODO invalid json such like {"name" "value"}
+          name <- nextName[N]()
+          value <- nextValue[V]()
+        } yield (name, value))
 
 class ArrayAccessor(parser: Parser):
   def punctuator = ControlFactory.Comma
@@ -88,7 +88,6 @@ class ArrayAccessor(parser: Parser):
       comma <- parser.tokenizer.noTrailingPunctuator(punctuator, terminator)
     } yield element
 
-  // TODO toList, toSeq, etc ?
-  def toIter[V](using vv: Visitor[V]) = new Iterator[V]:
+  def elements[V](using vv: Visitor[V]) = new Iterator[Either[ParseError, V]]:
     def hasNext = hasNextElement
-    def next() = nextElement().getOrElse(throw new RuntimeException)
+    def next() = nextElement()
