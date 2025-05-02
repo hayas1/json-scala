@@ -24,6 +24,11 @@ object VisitorError:
     def message =
       val or = exp.map(_.toString).mkString(" or ")
       f"cannot parse $act as $or"
+  case class MissingField(typename: String, field: String) extends VisitorError:
+    def message = f"missing field $typename.$field"
+  case class UnexpectedField(typename: String, field: String)
+      extends VisitorError:
+    def message = f"$typename has no field such as $field"
 
 given Visitor[String] with
   def expectType = List(ValueType.String)
