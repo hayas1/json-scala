@@ -15,6 +15,7 @@ class Parser(val tokenizer: Tokenizer):
         case Spanned(token, span) =>
           Left(TokenizeError.UnknownControl(Spanned(token.represent, span)))
     } yield value
+
   def parseObject[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       leftBrace <- tokenizer.expect(ControlFactory.LeftBrace)
@@ -56,34 +57,38 @@ class ObjectAccessor(parser: Parser):
   def terminator = ControlFactory.RightBrace
 
   def hasNextItem = parser.tokenizer.expect(terminator, false).isLeft
-  def nextKey[K](using visitor: Visitor[K]) = for {
-    key <- parser.parseString()
-    colon <- parser.tokenizer.expect(ControlFactory.Colon)
-  } yield key
-  def nextValue[V](using visitor: Visitor[V]) = for {
-    value <- parser.parseValue()
-    comma <- parser.tokenizer.noTrailingPunctuator(punctuator, terminator)
-  } yield value
+  def nextKey[K]()(using visitor: Visitor[K]) =
+    for {
+      key <- parser.parseString()
+      colon <- parser.tokenizer.expect(ControlFactory.Colon)
+    } yield key
+  def nextValue[V]()(using visitor: Visitor[V]) =
+    for {
+      value <- parser.parseValue()
+      comma <- parser.tokenizer.noTrailingPunctuator(punctuator, terminator)
+    } yield value
 
   // TODO toMap, toList, toSeq, etc ?
   def toIter[K, V](using kv: Visitor[K], vv: Visitor[V]) = new Iterator[(K, V)]:
     def hasNext = hasNextItem
-    def next() = (for {
-      key <- nextKey[K]
-      value <- nextValue[V]
-    } yield (key, value)).getOrElse(throw new RuntimeException)
+    def next() =
+      (for { // TODO invalid json such like {"key" "value"}
+        key <- nextKey[K]()
+        value <- nextValue[V]()
+      } yield (key, value)).getOrElse(throw new RuntimeException)
 
 class ArrayAccessor(parser: Parser):
   def punctuator = ControlFactory.Comma
   def terminator = ControlFactory.RightBracket
 
   def hasNextValue = parser.tokenizer.expect(terminator, false).isLeft
-  def nextValue[V](using visitor: Visitor[V]) = for {
-    value <- parser.parseValue()
-    comma <- parser.tokenizer.noTrailingPunctuator(punctuator, terminator)
-  } yield value
+  def nextValue[V]()(using visitor: Visitor[V]) =
+    for {
+      value <- parser.parseValue()
+      comma <- parser.tokenizer.noTrailingPunctuator(punctuator, terminator)
+    } yield value
 
   // TODO toList, toSeq, etc ?
   def toIter[V](using vv: Visitor[V]) = new Iterator[V]:
     def hasNext = hasNextValue
-    def next() = nextValue.getOrElse(throw new RuntimeException)
+    def next() = nextValue().getOrElse(throw new RuntimeException)
