@@ -141,10 +141,4 @@ object ParseError:
   case class WhileParsing[E <: ParseError](e: E) extends ParseError:
     override def span = None
     override def cause = Some(e)
-    def message =
-      var rep: ParseError = this
-      var s: Option[Span] = span
-      while rep.cause.nonEmpty do
-        rep = rep.cause.get
-        s = rep.span orElse s
-      s"${s getOrElse ""}: ${e.message}"
+    def message = s"${e.message}"
