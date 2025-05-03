@@ -26,24 +26,17 @@ given ControlFactory: Factory[ControlToken] with
 
   // TODO Only this implementation does not advance the cursor to next
   def tokenize(tokenizer: Tokenizer) =
-    tokenizer
-      .lookAhead()
-      .map {
-        _ match
-          case LEFT_BRACE          => Right(LeftBrace)
-          case RIGHT_BRACE         => Right(RightBrace)
-          case COLON               => Right(Colon)
-          case LEFT_BRACKET        => Right(LeftBracket)
-          case RIGHT_BRACKET       => Right(RightBracket)
-          case COMMA               => Right(Comma)
-          case StringFactory.QUOTE => Right(StringFactory.Quote)
-          case NullFactory.NULL0   => Right(NullFactory.Null0)
-          case c                   => Left(c)
-      } match // TODO how to use cats in this case ?
-      case Spanned(Right(t), pos) => Right(t)
-      case Spanned(Left(c), pos) =>
-        Left(c).left
-          .map(c => Spanned(TokenizeError.UnknownControl(c), pos))
+    val Spanned(c, pos) = tokenizer.lookAhead()
+    c match
+      case LEFT_BRACE          => Right(LeftBrace)
+      case RIGHT_BRACE         => Right(RightBrace)
+      case COLON               => Right(Colon)
+      case LEFT_BRACKET        => Right(LeftBracket)
+      case RIGHT_BRACKET       => Right(RightBracket)
+      case COMMA               => Right(Comma)
+      case StringFactory.QUOTE => Right(StringFactory.Quote)
+      case NullFactory.NULL0   => Right(NullFactory.Null0)
+      case c => Left(Spanned(TokenizeError.UnknownControl(c), pos))
 
 case class StringToken(
     startQuote: StringFactory.Quote.type,
@@ -55,13 +48,11 @@ given StringFactory: Factory[StringToken] with
   val QUOTE = '"'
   case object Quote extends ControlToken(QUOTE)
   def tokenize(tokenizer: Tokenizer) =
-    tokenizer.scopeEither { tz =>
-      for {
-        start <- tz.expect(Quote)
-        content <- tz.tokenizeCharacters()
-        end <- tz.expect(Quote)
-      } yield StringToken(start.target, content, end.target)
-    }
+    for {
+      start <- tokenizer.expect(Quote)
+      content <- tokenizer.tokenizeCharacters()
+      end <- tokenizer.expect(Quote)
+    } yield StringToken(start, content, end)
 
 case class NullToken() extends Token:
   def repr = List(
@@ -80,14 +71,12 @@ given NullFactory: Factory[NullToken] with
   case object Null2 extends ControlToken(NULL2)
   case object Null3 extends ControlToken(NULL3)
   def tokenize(tokenizer: Tokenizer) =
-    tokenizer.scopeEither { tz =>
-      for {
-        n <- tokenizer.expect(Null0)
-        u <- tokenizer.expect(Null1)
-        l <- tokenizer.expect(Null2)
-        l <- tokenizer.expect(Null3)
-      } yield NullToken()
-    }
+    for {
+      n <- tokenizer.expect(Null0)
+      u <- tokenizer.expect(Null1)
+      l <- tokenizer.expect(Null2)
+      l <- tokenizer.expect(Null3)
+    } yield NullToken()
 
 class Tokenizer(cursor: RowColIterator):
   def dropWhitespace() =
@@ -111,8 +100,8 @@ class Tokenizer(cursor: RowColIterator):
     val actual = if next then cursor.next() else cursor.peek
     Either.cond(
       token.represent == actual,
-      Spanned(token, span),
-      TokenizeError.UnexpectedToken(token, actual)
+      token,
+      Spanned(TokenizeError.UnexpectedToken(token, actual): TokenizeError, span)
     )
 
   def lookAhead() =
@@ -137,7 +126,6 @@ class Tokenizer(cursor: RowColIterator):
     Right(builder.mkString)
 
 sealed trait TokenizeError extends ParseError
-
 object TokenizeError:
   case class UnexpectedToken(exp: ControlToken, act: Char)
       extends TokenizeError:

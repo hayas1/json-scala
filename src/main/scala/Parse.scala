@@ -15,8 +15,7 @@ class Parser(val tokenizer: Tokenizer):
         case ControlFactory.LeftBracket => parseArray()
         case StringFactory.Quote        => parseString()
         case NullFactory.Null0          => parseNull()
-        case token =>
-          Left(TokenizeError.UnknownControl(token.represent))
+        case token => Left(TokenizeError.UnknownControl(token.represent))
     } yield value
     result.left.map { // TODO type annotation needed ?
       case Spanned(e: TokenizeError, _) => e
@@ -62,12 +61,6 @@ trait ParseError extends Throwable:
   def cause: Option[ParseError] = None
   def message: String
   override def toString = message
-given [T <: ParseError]: Conversion[Spanned[T], ParseError] with
-  def apply(spanned: Spanned[T]): ParseError = new ParseError {
-    override def span = Some(spanned.span)
-    override def cause = Some(spanned.target)
-    def message = s"${spanned.span}: ${spanned.target.message}"
-  }
 
 class ObjectAccessor(parser: Parser):
   def punctuator = ControlFactory.Comma
@@ -111,4 +104,9 @@ class ArrayAccessor(parser: Parser):
 
   def elements[V](using vv: Visitor[V]) = new Iterator[Either[ParseError, V]]:
     def hasNext = hasNextElement
-    def next() = nextElement()
+    def next() =
+      val result = nextElement()
+      result.left.map { // TODO type annotation needed ?
+        case Spanned(e: TokenizeError, _) => e
+        case e: ParseError                => e
+      }
