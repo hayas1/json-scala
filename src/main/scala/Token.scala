@@ -84,16 +84,11 @@ class Tokenizer(cursor: RowColIterator):
     while cursor.hasNext && cursor.peek.isWhitespace do cursor.next()
     cursor.position
 
-  def scope[T](f: Tokenizer => T) =
+  def scope[C, T](context: C)(f: => T) =
     val start = dropWhitespace()
-    val result = f(this)
+    val result = f
     val end = cursor.position
-    Spanned(result, Span(start, end))
-  def scopeEither[A, B](f: Tokenizer => Either[A, B]) =
-    val start = dropWhitespace()
-    val result = f(this)
-    val end = cursor.position
-    result.left.map(Spanned(_, Span(start, end)))
+    (Spanned(context, Span(start, end)), result)
 
   def expect[T <: ControlToken](token: T, next: Boolean = true) =
     val span = dropWhitespace().asSpan
