@@ -121,7 +121,7 @@ class ArrayAccessor(parser: Parser):
     def hasNext = hasNextElement
     def next() = nextElement()
 
-trait ParseError extends Throwable:
+trait ParseError extends Throwable: // TODO refactor error handling
   def span: Option[Span] = None
   def cause: Option[ParseError] = None
   def message: String
