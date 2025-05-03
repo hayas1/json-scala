@@ -5,10 +5,10 @@ import cats.syntax.applicative.*
 sealed trait Token:
   def repr: String
 sealed trait Factory[T <: Token]:
-  def tokenize(tokenizer: Tokenizer): Either[Spanned[TokenizeError], T]
+  def tokenize(tokenizer: Tokenizer): Either[TokenizeError, T]
 
 abstract class ControlToken(val represent: Char) extends Token:
-  def repr = represent.toString()
+  def repr = represent.toString
 given ControlFactory: Factory[ControlToken] with
   val LEFT_BRACE = '{'
   val RIGHT_BRACE = '}'
@@ -36,7 +36,7 @@ given ControlFactory: Factory[ControlToken] with
       case COMMA               => Right(Comma)
       case StringFactory.QUOTE => Right(StringFactory.Quote)
       case NullFactory.NULL0   => Right(NullFactory.Null0)
-      case c => Left(Spanned(TokenizeError.UnknownControl(c), pos))
+      case c => Left(TokenizeError.UnknownControl(Spanned(c, pos)))
 
 case class StringToken(
     startQuote: StringFactory.Quote.type,
@@ -96,7 +96,7 @@ class Tokenizer(cursor: RowColIterator):
     Either.cond(
       token.represent == actual,
       token,
-      Spanned(TokenizeError.UnexpectedToken(token, actual): TokenizeError, span)
+      TokenizeError.UnexpectedToken(token, Spanned(actual, span))
     )
 
   def lookAhead() =
@@ -122,8 +122,10 @@ class Tokenizer(cursor: RowColIterator):
 
 sealed trait TokenizeError extends ParseError
 object TokenizeError:
-  case class UnexpectedToken(exp: ControlToken, act: Char)
+  case class UnexpectedToken(exp: ControlToken, act: Spanned[Char])
       extends TokenizeError:
-    def message = f"expected '${exp.repr}', but got '${act}'"
-  case class UnknownControl(act: Char) extends TokenizeError:
-    def message = f"unknown control token '${act}'"
+    override def span = Some(act.span)
+    def message = f"expected '${exp.repr}', but got '${act.target}'"
+  case class UnknownControl(act: Spanned[Char]) extends TokenizeError:
+    override def span = Some(act.span)
+    def message = f"unknown control token '${act.target}'"

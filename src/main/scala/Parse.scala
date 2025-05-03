@@ -16,13 +16,15 @@ class Parser(val tokenizer: Tokenizer):
           case ControlFactory.LeftBracket => parseArray()
           case StringFactory.Quote        => parseString()
           case NullFactory.Null0          => parseNull()
-          case token => Left(TokenizeError.UnknownControl(token.represent))
+          case token =>
+            Left(
+              TokenizeError.UnknownControl( // TODO get Span
+                Spanned(token.represent, Span(Position(), Position()))
+              )
+            )
       } yield value
     }
-    value.left.map { // TODO use apply
-      case e: Spanned[TokenizeError] => ParseError.WhileParsing(e)
-      case e: ParseError             => ParseError.WhileParsing(e)
-    }
+    value.left.map(ParseError.WhileParsing(_))
 
   def parseObject[T, V <: Visitor]()(using visitor: V[T]) =
     val (ctx, members) = tokenizer.scope(ValueType.Object) {
@@ -32,11 +34,7 @@ class Parser(val tokenizer: Tokenizer):
         rightBrace <- tokenizer.expect(ControlFactory.RightBrace)
       } yield members
     }
-    // members.left.map(ParseError(ctx, _))
-    members.left.map { // TODO use apply
-      case e: Spanned[TokenizeError] => ParseError(ctx, e)
-      case e: VisitorError           => ParseError(ctx, e)
-    }
+    members.left.map(ParseError.Context(ctx, _))
 
   def parseArray[T, V <: Visitor]()(using visitor: V[T]) =
     val (ctx, elements) = tokenizer.scope(ValueType.Array) {
@@ -46,10 +44,7 @@ class Parser(val tokenizer: Tokenizer):
         rightBracket <- tokenizer.expect(ControlFactory.RightBracket)
       } yield elements
     }
-    elements.left.map { // TODO use apply
-      case e: Spanned[TokenizeError] => ParseError(ctx, e)
-      case e: VisitorError           => ParseError(ctx, e)
-    }
+    elements.left.map(ParseError.Context(ctx, _))
 
   def parseString[T, V <: Visitor]()(using visitor: V[T]) =
     val (ctx, string) = tokenizer.scope(ValueType.String) {
@@ -58,10 +53,7 @@ class Parser(val tokenizer: Tokenizer):
         string <- visitor.visitString(stringToken.content)
       } yield string
     }
-    string.left.map { // TODO use apply
-      case e: Spanned[TokenizeError] => ParseError(ctx, e)
-      case e: VisitorError           => ParseError(ctx, e)
-    }
+    string.left.map(ParseError.Context(ctx, _))
 
   def parseNull[T, V <: Visitor]()(using visitor: V[T]) =
     val (ctx, nullValue) = tokenizer.scope(ValueType.Null) {
@@ -70,10 +62,7 @@ class Parser(val tokenizer: Tokenizer):
         nullValue <- visitor.visitNull()
       } yield nullValue
     }
-    nullValue.left.map { // TODO use apply
-      case e: Spanned[TokenizeError] => ParseError(ctx, e)
-      case e: VisitorError           => ParseError(ctx, e)
-    }
+    nullValue.left.map(ParseError.Context(ctx, _))
 
 object Parser:
   def apply(target: String) =
@@ -89,35 +78,27 @@ trait ParseError extends Throwable:
   def message: String
   override def toString = message
 object ParseError:
-  def apply[E <: ParseError](context: Spanned[ValueType], e: E | Spanned[E]) =
-    e match
-      case e: Spanned[E] => ParseError.ContextSpanned(context, e)
-      case e: ParseError => ParseError.Context(context, e)
-
   case class Context[E <: ParseError](context: Spanned[ValueType], e: E)
       extends ParseError:
     override def span = Some(context.span)
     override def cause = Some(e)
-    def message = s"$span: ${e.message}"
-  case class ContextSpanned[E <: ParseError](
-      context: Spanned[ValueType],
-      e: Spanned[E]
-  ) extends ParseError:
-    override def span = Some(context.span)
-    override def cause = Some(e.target)
-    def message = s"$span: ${e.target.message}"
-  case class WhileParsing[E <: ParseError](e: E | Spanned[E])
-      extends ParseError:
-    override def span = e match
-      case e: Spanned[E] => Some(e.span)
-      case e: ParseError => None
-
-    override def cause = e match
-      case e: Spanned[E] => Some(e.target)
-      case e: ParseError => Some(e)
-    def message = e match
-      case e: Spanned[E] => s"$span: ${e.target.message}"
-      case e: ParseError => e.message
+    def message =
+      var rep: ParseError = this
+      var s: Option[Span] = span
+      while rep.cause.nonEmpty do
+        rep = rep.cause.get
+        s = rep.span orElse s
+      s"${s getOrElse ""}: ${e.message}"
+  case class WhileParsing[E <: ParseError](e: E) extends ParseError:
+    override def span = None
+    override def cause = Some(e)
+    def message =
+      var rep: ParseError = this
+      var s: Option[Span] = span
+      while rep.cause.nonEmpty do
+        rep = rep.cause.get
+        s = rep.span orElse s
+      s"${s getOrElse ""}: ${e.message}"
 
 class ObjectAccessor(parser: Parser):
   def punctuator = ControlFactory.Comma
@@ -131,10 +112,7 @@ class ObjectAccessor(parser: Parser):
         colon <- parser.tokenizer.expect(ControlFactory.Colon)
       } yield name
     }
-    name.left.map { // TODO use apply
-      case e: Spanned[TokenizeError] => ParseError.WhileParsing(e)
-      case e: ParseError             => ParseError.WhileParsing(e)
-    }
+    name.left.map(ParseError.WhileParsing(_))
   def nextValue[V]()(using visitor: Visitor[V]) =
     val (_, value) = parser.tokenizer.scope(()) {
       for {
@@ -142,10 +120,7 @@ class ObjectAccessor(parser: Parser):
         comma <- parser.tokenizer.noTrailingPunctuator(punctuator, terminator)
       } yield value
     }
-    value.left.map { // TODO use apply
-      case e: Spanned[TokenizeError] => ParseError.WhileParsing(e)
-      case e: ParseError             => ParseError.WhileParsing(e)
-    }
+    value.left.map(ParseError.WhileParsing(_))
 
   def pairs[N, V](using nv: Visitor[N], vv: Visitor[V]) =
     new Iterator[Either[ParseError, (N, V)]]:
@@ -168,10 +143,7 @@ class ArrayAccessor(parser: Parser):
         comma <- parser.tokenizer.noTrailingPunctuator(punctuator, terminator)
       } yield element
     }
-    element.left.map { // TODO use apply
-      case e: Spanned[TokenizeError] => ParseError.WhileParsing(e)
-      case e: ParseError             => ParseError.WhileParsing(e)
-    }
+    element.left.map(ParseError.WhileParsing(_))
 
   def elements[V](using vv: Visitor[V]) = new Iterator[Either[ParseError, V]]:
     def hasNext = hasNextElement

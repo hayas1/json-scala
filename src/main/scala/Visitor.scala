@@ -20,9 +20,9 @@ object VisitorError:
       case v: VisitorError => v.cause
       case _               => None
     def message = c.toString
-  case class Parsing[E <: ParseError](e: E) extends VisitorError:
+  case class Parsing[E <: ParseError](e: E) extends VisitorError: // TODO remove
     override def cause = Some(e)
-    def message = e.toString
+    def message = e.message
   case class MissMatchType(exp: List[ValueType], act: ValueType)
       extends VisitorError:
     def message =

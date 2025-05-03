@@ -15,7 +15,7 @@ class VisitorTest extends AnyFunSuite:
     val json = parseJson[String](input)
 
     assert(
-      json.left.get.toString == "cannot parse Object as String"
+      json.left.get.toString == "(1, 1) to (1, 2): cannot parse Object as String"
     )
   }
 
@@ -48,6 +48,6 @@ class VisitorTest extends AnyFunSuite:
     val json = parseJson[Person](input)
 
     assert(
-      json.left.get.toString == "missing field Person.name"
+      json.left.get.toString == "(1, 1) to (1, 8): missing field Person.name"
     )
   }
