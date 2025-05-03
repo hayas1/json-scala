@@ -136,7 +136,5 @@ object TokenizeError:
   case class UnexpectedToken(exp: ControlToken, act: Spanned[Char])
       extends TokenizeError:
     def message = f"${act.span}: expected '${exp.repr}', but got '${act.token}'"
-  case class Unreachable(msg: String = "unreachable") extends TokenizeError:
-    def message = msg
   case class UnknownControl(act: Spanned[Char]) extends TokenizeError:
     def message = f"${act.span}: unknown control token '${act.token}'"
