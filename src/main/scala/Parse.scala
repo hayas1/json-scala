@@ -72,34 +72,6 @@ object Parser:
       )
     )
 
-trait ParseError extends Throwable:
-  def span: Option[Span] = None
-  def cause: Option[ParseError] = None
-  def message: String
-  override def toString = message
-object ParseError:
-  case class Context[E <: ParseError](context: Spanned[ValueType], e: E)
-      extends ParseError:
-    override def span = Some(context.span)
-    override def cause = Some(e)
-    def message =
-      var rep: ParseError = this
-      var s: Option[Span] = span
-      while rep.cause.nonEmpty do
-        rep = rep.cause.get
-        s = rep.span orElse s
-      s"${s getOrElse ""}: ${e.message}"
-  case class WhileParsing[E <: ParseError](e: E) extends ParseError:
-    override def span = None
-    override def cause = Some(e)
-    def message =
-      var rep: ParseError = this
-      var s: Option[Span] = span
-      while rep.cause.nonEmpty do
-        rep = rep.cause.get
-        s = rep.span orElse s
-      s"${s getOrElse ""}: ${e.message}"
-
 class ObjectAccessor(parser: Parser):
   def punctuator = ControlFactory.Comma
   def terminator = ControlFactory.RightBrace
@@ -148,3 +120,31 @@ class ArrayAccessor(parser: Parser):
   def elements[V](using vv: Visitor[V]) = new Iterator[Either[ParseError, V]]:
     def hasNext = hasNextElement
     def next() = nextElement()
+
+trait ParseError extends Throwable:
+  def span: Option[Span] = None
+  def cause: Option[ParseError] = None
+  def message: String
+  override def toString = message
+object ParseError:
+  case class Context[E <: ParseError](context: Spanned[ValueType], e: E)
+      extends ParseError:
+    override def span = Some(context.span)
+    override def cause = Some(e)
+    def message =
+      var rep: ParseError = this
+      var s: Option[Span] = span
+      while rep.cause.nonEmpty do
+        rep = rep.cause.get
+        s = rep.span orElse s
+      s"${s getOrElse ""}: ${e.message}"
+  case class WhileParsing[E <: ParseError](e: E) extends ParseError:
+    override def span = None
+    override def cause = Some(e)
+    def message =
+      var rep: ParseError = this
+      var s: Option[Span] = span
+      while rep.cause.nonEmpty do
+        rep = rep.cause.get
+        s = rep.span orElse s
+      s"${s getOrElse ""}: ${e.message}"
