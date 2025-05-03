@@ -37,3 +37,21 @@ object VisitorError:
 given Visitor[String] with
   def expectType = List(ValueType.String)
   override def visitString(string: String) = Right(string)
+
+given Visitor[Int] with
+  def expectType: List[ValueType] = List(ValueType.Number)
+  override def visitNumber(number: Double) = Right(number.toInt)
+
+given [T](using visitor: Visitor[T]): Visitor[Option[T]] with
+  def expectType: List[ValueType] = List(ValueType.Null) ++ visitor.expectType
+  override def visitObject(accessor: ObjectAccessor) =
+    visitor.visitObject(accessor).map(Some(_))
+  override def visitArray(accessor: ArrayAccessor) =
+    visitor.visitArray(accessor).map(Some(_))
+  override def visitString(string: String) =
+    visitor.visitString(string).map(Some(_))
+  override def visitNumber(number: Double) =
+    visitor.visitNumber(number).map(Some(_))
+  override def visitBool(bool: Boolean) =
+    visitor.visitBool(bool).map(Some(_))
+  override def visitNull() = Right(None)
