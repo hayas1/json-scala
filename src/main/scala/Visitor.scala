@@ -15,10 +15,14 @@ trait Visitor[T]:
 
 sealed trait VisitorError extends ParseError
 object VisitorError:
-  case class Custom[E](msg: E) extends VisitorError:
-    def message = msg.toString()
-  case class Parsing[E <: ParseError](source: E) extends VisitorError:
-    def message = source.message
+  case class Custom[E](c: E) extends VisitorError:
+    override def cause = c match
+      case v: VisitorError => v.cause
+      case _               => None
+    def message = c.toString
+  case class Parsing[E <: ParseError](e: E) extends VisitorError:
+    override def cause = Some(e)
+    def message = e.toString
   case class MissMatchType(exp: List[ValueType], act: ValueType)
       extends VisitorError:
     def message =
