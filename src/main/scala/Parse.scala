@@ -56,6 +56,10 @@ object Parser:
 trait ParseError extends Throwable:
   def message: String
   override def toString = message
+given [T <: ParseError]: Conversion[Spanned[T], ParseError] with
+  def apply(spanned: Spanned[T]): ParseError = new ParseError {
+    def message: String = s"${spanned.span}: ${spanned.target.message}"
+  }
 
 class ObjectAccessor(parser: Parser):
   def punctuator = ControlFactory.Comma
