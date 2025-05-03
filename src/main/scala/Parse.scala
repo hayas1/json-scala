@@ -8,16 +8,20 @@ class Parser(val tokenizer: Tokenizer):
   def parseValue[T, V <: Visitor]()(using
       visitor: V[T]
   ): Either[ParseError, T] =
-    for {
+    val result = for {
       control <- tokenizer.tokenize[ControlToken]()
       value <- control match
-        case Spanned(ControlFactory.LeftBrace, _)   => parseObject()
-        case Spanned(ControlFactory.LeftBracket, _) => parseArray()
-        case Spanned(StringFactory.Quote, _)        => parseString()
-        case Spanned(NullFactory.Null0, _)          => parseNull()
-        case Spanned(token, span) =>
-          Left(TokenizeError.UnknownControl(Spanned(token.represent, span)))
+        case ControlFactory.LeftBrace   => parseObject()
+        case ControlFactory.LeftBracket => parseArray()
+        case StringFactory.Quote        => parseString()
+        case NullFactory.Null0          => parseNull()
+        case token =>
+          Left(TokenizeError.UnknownControl(token.represent))
     } yield value
+    result.left.map { // TODO type annotation needed ?
+      case Spanned(e: TokenizeError, _) => e
+      case e: ParseError                => e
+    }
 
   def parseObject[T, V <: Visitor]()(using visitor: V[T]) =
     for {
@@ -36,7 +40,7 @@ class Parser(val tokenizer: Tokenizer):
   def parseString[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       stringToken <- tokenizer.tokenize[StringToken]()
-      string <- visitor.visitString(stringToken.target.content)
+      string <- visitor.visitString(stringToken.content)
     } yield string
 
   def parseNull[T, V <: Visitor]()(using visitor: V[T]) =
@@ -81,10 +85,14 @@ class ObjectAccessor(parser: Parser):
     new Iterator[Either[ParseError, (N, V)]]:
       def hasNext = hasNextPair
       def next() =
-        (for { // TODO invalid json such like {"name" "value"}
+        val result = (for {
           name <- nextName[N]()
           value <- nextValue[V]()
         } yield (name, value))
+        result.left.map { // TODO type annotation needed ?
+          case Spanned(e: TokenizeError, _) => e
+          case e: ParseError                => e
+        }
 
 class ArrayAccessor(parser: Parser):
   def punctuator = ControlFactory.Comma

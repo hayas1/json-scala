@@ -5,7 +5,7 @@ import cats.syntax.applicative.*
 sealed trait Token:
   def repr: String
 sealed trait Factory[T <: Token]:
-  def tokenize(tokenizer: Tokenizer): Either[TokenizeError, Spanned[T]]
+  def tokenize(tokenizer: Tokenizer): Either[Spanned[TokenizeError], T]
 
 abstract class ControlToken(val represent: Char) extends Token:
   def repr = represent.toString()
@@ -40,9 +40,10 @@ given ControlFactory: Factory[ControlToken] with
           case NullFactory.NULL0   => Right(NullFactory.Null0)
           case c                   => Left(c)
       } match // TODO how to use cats in this case ?
-      case Spanned(Right(t), pos) => Right(Spanned(t, pos))
+      case Spanned(Right(t), pos) => Right(t)
       case Spanned(Left(c), pos) =>
-        Left(Spanned(c, pos)).left.map(TokenizeError.UnknownControl.apply)
+        Left(c).left
+          .map(c => Spanned(TokenizeError.UnknownControl(c), pos))
 
 case class StringToken(
     startQuote: StringFactory.Quote.type,
@@ -54,13 +55,13 @@ given StringFactory: Factory[StringToken] with
   val QUOTE = '"'
   case object Quote extends ControlToken(QUOTE)
   def tokenize(tokenizer: Tokenizer) =
-    tokenizer.scope { tz =>
+    tokenizer.scopeEither { tz =>
       for {
         start <- tz.expect(Quote)
         content <- tz.tokenizeCharacters()
         end <- tz.expect(Quote)
       } yield StringToken(start.target, content, end.target)
-    }.sequence
+    }
 
 case class NullToken() extends Token:
   def repr = List(
@@ -79,14 +80,14 @@ given NullFactory: Factory[NullToken] with
   case object Null2 extends ControlToken(NULL2)
   case object Null3 extends ControlToken(NULL3)
   def tokenize(tokenizer: Tokenizer) =
-    tokenizer.scope { tz =>
+    tokenizer.scopeEither { tz =>
       for {
         n <- tokenizer.expect(Null0)
         u <- tokenizer.expect(Null1)
         l <- tokenizer.expect(Null2)
         l <- tokenizer.expect(Null3)
       } yield NullToken()
-    }.sequence
+    }
 
 class Tokenizer(cursor: RowColIterator):
   def dropWhitespace() =
@@ -99,6 +100,11 @@ class Tokenizer(cursor: RowColIterator):
     val result = f(this)
     val end = cursor.position
     Spanned(result, Span(start, end))
+  def scopeEither[A, B](f: Tokenizer => Either[A, B]) =
+    val start = dropWhitespace()
+    val result = f(this)
+    val end = cursor.position
+    result.left.map(Spanned(_, Span(start, end)))
 
   def expect[T <: ControlToken](token: T, next: Boolean = true) =
     val span = dropWhitespace().asSpan
@@ -106,7 +112,7 @@ class Tokenizer(cursor: RowColIterator):
     Either.cond(
       token.represent == actual,
       Spanned(token, span),
-      TokenizeError.UnexpectedToken(token, Spanned(actual, span))
+      TokenizeError.UnexpectedToken(token, actual)
     )
 
   def lookAhead() =
@@ -133,9 +139,8 @@ class Tokenizer(cursor: RowColIterator):
 sealed trait TokenizeError extends ParseError
 
 object TokenizeError:
-  case class UnexpectedToken(exp: ControlToken, act: Spanned[Char])
+  case class UnexpectedToken(exp: ControlToken, act: Char)
       extends TokenizeError:
-    def message =
-      f"${act.span}: expected '${exp.repr}', but got '${act.target}'"
-  case class UnknownControl(act: Spanned[Char]) extends TokenizeError:
-    def message = f"${act.span}: unknown control token '${act.target}'"
+    def message = f"expected '${exp.repr}', but got '${act}'"
+  case class UnknownControl(act: Char) extends TokenizeError:
+    def message = f"unknown control token '${act}'"
