@@ -34,17 +34,16 @@ case class Span(start: Position, end: Position):
     summon[Ordering[Position]].min(start, other.start),
     summon[Ordering[Position]].max(end, other.end)
   )
-  def spanned[T](token: T) = Spanned(token, this)
 
-case class Spanned[T](token: T, span: Span)
+case class Spanned[T](target: T, span: Span)
 given Traverse[Spanned] with
   def traverse[G[_], A, B](fa: Spanned[A])(
       f: A => G[B]
   )(using G: Applicative[G]): G[Spanned[B]] =
-    G.map(f(fa.token))(b => Spanned(b, fa.span))
+    G.map(f(fa.target))(b => Spanned(b, fa.span))
   def foldLeft[A, B](fa: Spanned[A], b: B)(f: (B, A) => B): B =
-    f(b, fa.token)
+    f(b, fa.target)
   def foldRight[A, B](fa: Spanned[A], lb: Eval[B])(
       f: (A, Eval[B]) => Eval[B]
   ): Eval[B] =
-    f(fa.token, lb)
+    f(fa.target, lb)

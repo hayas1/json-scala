@@ -36,7 +36,7 @@ class Parser(val tokenizer: Tokenizer):
   def parseString[T, V <: Visitor]()(using visitor: V[T]) =
     for {
       stringToken <- tokenizer.tokenize[StringToken]()
-      string <- visitor.visitString(stringToken.token.content)
+      string <- visitor.visitString(stringToken.target.content)
     } yield string
 
   def parseNull[T, V <: Visitor]()(using visitor: V[T]) =

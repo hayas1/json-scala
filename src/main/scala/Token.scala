@@ -59,7 +59,7 @@ given StringFactory: Factory[StringToken] with
         start <- tz.expect(Quote)
         content <- tz.tokenizeCharacters()
         end <- tz.expect(Quote)
-      } yield StringToken(start.token, content, end.token)
+      } yield StringToken(start.target, content, end.target)
     }.sequence
 
 case class NullToken() extends Token:
@@ -135,6 +135,7 @@ sealed trait TokenizeError extends ParseError
 object TokenizeError:
   case class UnexpectedToken(exp: ControlToken, act: Spanned[Char])
       extends TokenizeError:
-    def message = f"${act.span}: expected '${exp.repr}', but got '${act.token}'"
+    def message =
+      f"${act.span}: expected '${exp.repr}', but got '${act.target}'"
   case class UnknownControl(act: Spanned[Char]) extends TokenizeError:
-    def message = f"${act.span}: unknown control token '${act.token}'"
+    def message = f"${act.span}: unknown control token '${act.target}'"
