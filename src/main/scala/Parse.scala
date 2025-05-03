@@ -53,7 +53,9 @@ object Parser:
       )
     )
 
-trait ParseError extends Throwable
+trait ParseError extends Throwable:
+  def message: String
+  override def toString = message
 
 class ObjectAccessor(parser: Parser):
   def punctuator = ControlFactory.Comma

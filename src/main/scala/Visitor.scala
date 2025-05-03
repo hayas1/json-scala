@@ -13,12 +13,12 @@ trait Visitor[T]:
   def visitNull(): Either[VisitorError, T] =
     Left(VisitorError.MissMatchType(expectType, ValueType.Null))
 
-sealed trait VisitorError extends ParseError:
-  def message: String
-  override def toString() = message
+sealed trait VisitorError extends ParseError
 object VisitorError:
   case class Custom[E](msg: E) extends VisitorError:
     def message = msg.toString()
+  case class Parsing[E <: ParseError](source: E) extends VisitorError:
+    def message = source.message
   case class MissMatchType(exp: List[ValueType], act: ValueType)
       extends VisitorError:
     def message =

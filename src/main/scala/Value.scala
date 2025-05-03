@@ -44,11 +44,11 @@ given Visitor[Json] with
   override def visitObject(accessor: ObjectAccessor) =
     (for {
       pairs <- accessor.pairs[String, Json].toList.sequence
-    } yield Json.ValueObject(pairs.toMap)).left.map(VisitorError.Custom(_))
+    } yield Json.ValueObject(pairs.toMap)).left.map(VisitorError.Parsing(_))
   override def visitArray(accessor: ArrayAccessor) =
     (for {
       elements <- accessor.elements.toList.sequence
-    } yield Json.ValueArray(elements)).left.map(VisitorError.Custom(_))
+    } yield Json.ValueArray(elements)).left.map(VisitorError.Parsing(_))
   override def visitString(string: String) = Right(Json.ValueString(string))
   override def visitNumber(number: Double) = Right(Json.ValueNumber(number))
   override def visitBool(bool: Boolean) = Right(Json.ValueBool(bool))

@@ -130,9 +130,7 @@ class Tokenizer(cursor: RowColIterator):
       builder.append(cursor.next())
     Right(builder.mkString)
 
-sealed trait TokenizeError extends ParseError:
-  def message: String
-  override def toString() = message
+sealed trait TokenizeError extends ParseError
 
 object TokenizeError:
   case class UnexpectedToken(exp: ControlToken, act: Spanned[Char])

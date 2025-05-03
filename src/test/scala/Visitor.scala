@@ -29,7 +29,7 @@ class VisitorTest extends AnyFunSuite:
       )
       accessor.nextName[String]() match
         case Right("name") =>
-          name = accessor.nextValue[String]().left.map(VisitorError.Custom(_))
+          name = accessor.nextValue[String]().left.map(VisitorError.Parsing(_))
         case Right(field) => Left(VisitorError.UnexpectedField(typename, field))
         case Left(e)      => Left(e)
       for {
