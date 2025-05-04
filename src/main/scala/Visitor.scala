@@ -45,18 +45,32 @@ object Visitor:
       fieldNames: List[String],
       fieldVisitors: List[Visitor[?]]
   ): Either[VisitorError, Tuple] =
-    val values = scala.collection.mutable.ListBuffer.empty[Any]
-    for (field <- fieldNames.zip(fieldVisitors)) {
+    val visitors = fieldNames.zip(fieldVisitors).toMap
+    var valueMap = scala.collection.mutable.Map[String, Any]()
+
+    while accessor.hasNextPair do
       accessor.nextName[String]() match
-        case Right(name) if name == field._1 =>
-          accessor.nextValue()(using field._2) match
-            case Right(value) => values += value
+        case Right(name) if visitors contains name =>
+          accessor.nextValue()(using visitors(name)) match
+            case Right(value) => valueMap(name) = value
             case Left(err)    => return Left(VisitorError.Parsing(err))
         case Right(other) =>
           return Left(VisitorError.UnexpectedField(typename, other))
         case Left(e) => return Left(VisitorError.Parsing(e))
-    }
-    Right(Tuple.fromArray(values.toArray))
+
+    for {
+      values <- fieldNames.foldLeft(
+        Right(Seq.empty[Any]): Either[VisitorError, Seq[Any]]
+      ) {
+        case (Right(l), name) =>
+          for {
+            value <- valueMap
+              .get(name)
+              .toRight(VisitorError.MissingField(typename, name))
+          } yield (l :+ value)
+        case (left @ Left(_), _) => left
+      }
+    } yield Tuple.fromArray(values.toArray)
 
 sealed trait VisitorError extends ParseError
 object VisitorError:
