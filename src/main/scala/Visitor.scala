@@ -1,3 +1,6 @@
+import scala.deriving.*
+import scala.compiletime.{constValue, erasedValue, summonInline}
+
 trait Visitor[T]:
   def expectType: List[ValueType]
   def visitObject(accessor: ObjectAccessor): Either[VisitorError, T] =
@@ -12,6 +15,48 @@ trait Visitor[T]:
     Left(VisitorError.MissMatchType(expectType, ValueType.Bool))
   def visitNull(): Either[VisitorError, T] =
     Left(VisitorError.MissMatchType(expectType, ValueType.Null))
+
+object Visitor:
+  inline def derived[T](using m: Mirror.ProductOf[T]): Visitor[T] =
+    new Visitor[T]:
+      def expectType = List(ValueType.Object)
+      override def visitObject(accessor: ObjectAccessor) =
+        val typename = constValue[m.MirroredLabel]
+        val elemLabels = summonLabels[m.MirroredElemLabels]
+        val elemInstances = summonAll[m.MirroredElemTypes]
+        readFields(typename, accessor, elemLabels, elemInstances).map(
+          m.fromProduct
+        )
+
+  private inline def summonAll[Elems <: Tuple]: List[Visitor[?]] =
+    inline erasedValue[Elems] match
+      case _: (t *: ts)  => summonInline[Visitor[t]] :: summonAll[ts]
+      case _: EmptyTuple => Nil
+
+  private inline def summonLabels[Elems <: Tuple]: List[String] =
+    inline erasedValue[Elems] match
+      case _: (t *: ts) =>
+        constValue[t].asInstanceOf[String] :: summonLabels[ts]
+      case _: EmptyTuple => Nil
+
+  private def readFields(
+      typename: String,
+      accessor: ObjectAccessor,
+      fieldNames: List[String],
+      fieldVisitors: List[Visitor[?]]
+  ): Either[VisitorError, Tuple] =
+    val values = scala.collection.mutable.ListBuffer.empty[Any]
+    for (field <- fieldNames.zip(fieldVisitors)) {
+      accessor.nextName[String]() match
+        case Right(name) if name == field._1 =>
+          accessor.nextValue()(using field._2) match
+            case Right(value) => values += value
+            case Left(err)    => return Left(VisitorError.Parsing(err))
+        case Right(other) =>
+          return Left(VisitorError.UnexpectedField(typename, other))
+        case Left(e) => return Left(VisitorError.Parsing(e))
+    }
+    Right(Tuple.fromArray(values.toArray))
 
 sealed trait VisitorError extends ParseError
 object VisitorError:
