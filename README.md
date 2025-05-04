@@ -1,8 +1,29 @@
-## sbt project compiled with Scala 3
+## Json Scala
+A JSON parser written in Scala.
 
 ### Usage
+Parse JSON with known schema
+```scala
+  case class Person(name: String, age: Int) derives Visitor
 
-This is a normal sbt project. You can compile code with `sbt compile`, run it with `sbt run`, and `sbt console` will start a Scala 3 REPL.
+  val input = """{"name": "Taro", "age": 20}""".stripMargin
+  val json = parseJson[Person](input)
 
-For more information on the sbt-dotty plugin, see the
-[scala3-example-project](https://github.com/scala/scala3-example-project/blob/main/README.md).
+  assert(
+    json == Right(Person("Taro", 20))
+  )
+```
+
+Parse JSON with unknown schema
+```scala
+  val input = """[null, true, 1]""".stripMargin
+  val json = parseJson[Json](input)
+
+  assert(
+    json == Right(
+      Json.ValueArray(
+        List(Json.ValueNull, Json.ValueBool(true), Json.ValueNumber(1))
+      )
+    )
+  )
+```
