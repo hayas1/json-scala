@@ -4,12 +4,12 @@ import cats.syntax.applicative.*
 
 sealed trait Token:
   def repr: String
-sealed trait Factory[T <: Token]:
+sealed trait TokenFactory[T <: Token]:
   def tokenize(tokenizer: Tokenizer): Either[TokenizeError, T]
 
 abstract class ControlToken(val represent: Char) extends Token:
   def repr = represent.toString
-given ControlFactory: Factory[ControlToken] with
+given ControlFactory: TokenFactory[ControlToken] with
   val LEFT_BRACE = '{'
   val RIGHT_BRACE = '}'
   val COLON = ':'
@@ -58,7 +58,7 @@ case class StringToken(
     endQuote: StringFactory.Quote.type
 ) extends Token:
   def repr = startQuote.repr + content + endQuote.repr
-given StringFactory: Factory[StringToken] with
+given StringFactory: TokenFactory[StringToken] with
   val QUOTE = '"'
   case object Quote extends ControlToken(QUOTE)
   def tokenize(tokenizer: Tokenizer) =
@@ -85,7 +85,7 @@ case class NumberToken(
     }.mkString
     s"$signStr$digitsStr$fractionStr$exponentStr"
 
-given NumberFactory: Factory[NumberToken] with
+given NumberFactory: TokenFactory[NumberToken] with
   val PLUS = '+'
   val MINUS = '-'
   val DIGIT = '0' to '9'
@@ -159,7 +159,7 @@ case class BoolToken(bool: BoolFactory.True | BoolFactory.False) extends Token:
   def repr = bool match
     case t: BoolFactory.True  => "true"
     case f: BoolFactory.False => "false"
-given BoolFactory: Factory[BoolToken] with
+given BoolFactory: TokenFactory[BoolToken] with
   val TRUE0 = 't'
   val TRUE1 = 'r'
   val TRUE2 = 'u'
@@ -206,7 +206,7 @@ case class NullToken() extends Token:
     NullFactory.NULL2,
     NullFactory.NULL3
   ).mkString
-given NullFactory: Factory[NullToken] with
+given NullFactory: TokenFactory[NullToken] with
   val NULL0 = 'n'
   val NULL1 = 'u'
   val NULL2 = 'l'
@@ -248,8 +248,8 @@ class Tokenizer(cursor: RowColIterator):
     val span = (if drop then dropWhitespace() else cursor.position).asSpan
     f(cursor.peek).left.map(Spanned(_, span))
 
-  def tokenize[T <: Token]()(using Factory[T]) =
-    summon[Factory[T]].tokenize(this)
+  def tokenize[T <: Token]()(using TokenFactory[T]) =
+    summon[TokenFactory[T]].tokenize(this)
 
   def noTrailingPunctuator(punctuator: ControlToken, terminator: ControlToken) =
     val separated = expect(punctuator, false).isRight
