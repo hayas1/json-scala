@@ -44,3 +44,11 @@ class VisitorTest extends AnyFunSuite:
       json.left.get.toString == "(1, 1) to (1, 11): missing field Person.name"
     )
   }
+  test("object as defined case class with unexpected field") {
+    val input = """{"name": "Taro", "address": "Tokyo"}""".stripMargin
+    val json = parseJson[Person](input)
+
+    assert(
+      json.left.get.toString == "(1, 1) to (1, 28): Person has no field such as address"
+    )
+  }
