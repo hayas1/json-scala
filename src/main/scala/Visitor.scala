@@ -1,5 +1,7 @@
 import scala.deriving.*
 import scala.compiletime.{constValue, erasedValue, summonInline}
+import scala.collection.Factory
+import cats.syntax.traverse.*
 
 trait Visitor[T]:
   def expectType: List[ValueType]
@@ -98,11 +100,20 @@ given Visitor[String] with
   override def visitString(string: String) = Right(string)
 
 given Visitor[Int] with
-  def expectType: List[ValueType] = List(ValueType.Number)
+  def expectType = List(ValueType.Number)
   override def visitNumber(number: Double) = Right(number.toInt)
+given Visitor[Long] with
+  def expectType = List(ValueType.Number)
+  override def visitNumber(number: Double) = Right(number.toLong)
+given Visitor[Float] with
+  def expectType = List(ValueType.Number)
+  override def visitNumber(number: Double) = Right(number.toFloat)
+given Visitor[Double] with
+  def expectType = List(ValueType.Number)
+  override def visitNumber(number: Double) = Right(number)
 
 given [T](using visitor: Visitor[T]): Visitor[Option[T]] with
-  def expectType: List[ValueType] = List(ValueType.Null) ++ visitor.expectType
+  def expectType = List(ValueType.Null) ++ visitor.expectType
   override def visitObject(accessor: ObjectAccessor) =
     visitor.visitObject(accessor).map(Some(_))
   override def visitArray(accessor: ArrayAccessor) =
@@ -114,3 +125,14 @@ given [T](using visitor: Visitor[T]): Visitor[Option[T]] with
   override def visitBool(bool: Boolean) =
     visitor.visitBool(bool).map(Some(_))
   override def visitNull() = Right(None)
+
+given [F[_] <: Iterable[?], T](using
+    factory: Factory[T, F[T]],
+    visitor: Visitor[T]
+): Visitor[F[T]] with
+  def expectType = List(ValueType.Array)
+  override def visitArray(accessor: ArrayAccessor) =
+    for {
+      elements <- accessor.elements.toList.sequence.left
+        .map(VisitorError.Parsing(_))
+    } yield factory.fromSpecific(elements)
