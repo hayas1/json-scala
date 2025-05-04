@@ -33,6 +33,19 @@ class ParseTest extends AnyFunSuite:
     )
   }
 
+  test("array consisted of int") {
+    val input = """[1, 2, 3]""".stripMargin
+    val json = parseJson[Json](input)
+
+    assert(
+      json == Right(
+        Json.ValueArray(
+          List(Json.ValueNumber(1), Json.ValueNumber(2), Json.ValueNumber(3))
+        )
+      )
+    )
+  }
+
   test("invalid object structure") {
     val input = """{"hello": "world" "null": null}""".stripMargin
     val json = parseJson[Json](input)

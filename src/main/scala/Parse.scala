@@ -15,7 +15,14 @@ class Parser(val tokenizer: Tokenizer):
           case ControlFactory.LeftBrace   => parseObject()
           case ControlFactory.LeftBracket => parseArray()
           case StringFactory.Quote        => parseString()
-          case NullFactory.Null0          => parseNull()
+          case NumberFactory.Plus | NumberFactory.Minus | NumberFactory.Digit0 |
+              NumberFactory.Digit1 | NumberFactory.Digit2 |
+              NumberFactory.Digit3 | NumberFactory.Digit4 |
+              NumberFactory.Digit5 | NumberFactory.Digit6 |
+              NumberFactory.Digit7 | NumberFactory.Digit8 |
+              NumberFactory.Digit9 =>
+            parseNumber()
+          case NullFactory.Null0 => parseNull()
           case token =>
             Left(
               TokenizeError.UnknownControl( // TODO get Span
@@ -54,6 +61,15 @@ class Parser(val tokenizer: Tokenizer):
       } yield string
     }
     string.left.map(ParseError.Context(ctx, _))
+
+  def parseNumber[T, V <: Visitor]()(using visitor: V[T]) =
+    val (ctx, number) = tokenizer.scope(ValueType.Number) {
+      for {
+        numberToken <- tokenizer.tokenize[NumberToken]()
+        number <- visitor.visitNumber(numberToken.repr.toDouble) // TODO token?
+      } yield number
+    }
+    number.left.map(ParseError.Context(ctx, _))
 
   def parseNull[T, V <: Visitor]()(using visitor: V[T]) =
     val (ctx, nullValue) = tokenizer.scope(ValueType.Null) {

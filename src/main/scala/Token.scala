@@ -35,7 +35,14 @@ given ControlFactory: Factory[ControlToken] with
       case RIGHT_BRACKET       => Right(RightBracket)
       case COMMA               => Right(Comma)
       case StringFactory.QUOTE => Right(StringFactory.Quote)
-      case NullFactory.NULL0   => Right(NullFactory.Null0)
+      case NumberFactory.PLUS  => Right(NumberFactory.Plus)
+      case NumberFactory.MINUS => Right(NumberFactory.Minus)
+      case d if NumberFactory.DIGIT contains d =>
+        Right(NumberFactory.DigitTokens(d - '0'))
+      case NumberFactory.DOT            => Right(NumberFactory.Dot)
+      case NumberFactory.EXPONENT_SMALL => Right(NumberFactory.ExponentSmall)
+      case NumberFactory.EXPONENT_LARGE => Right(NumberFactory.ExponentLarge)
+      case NullFactory.NULL0            => Right(NullFactory.Null0)
       case c => Left(TokenizeError.UnknownControl(Spanned(c, pos)))
 
 case class StringToken(
@@ -53,6 +60,93 @@ given StringFactory: Factory[StringToken] with
       content <- tokenizer.tokenizeCharacters()
       end <- tokenizer.expect(Quote)
     } yield StringToken(start, content, end)
+
+case class NumberToken(
+    sign: Option[NumberFactory.Minus.type],
+    digits: NumberFactory.Digits,
+    fraction: Option[NumberFactory.Fraction],
+    exponent: Option[NumberFactory.Exponent]
+) extends Token:
+  def repr =
+    val signStr = sign.map(_.repr).mkString
+    val digitsStr = digits.map(_.repr).mkString
+    val fractionStr = fraction.map { (dot, digits) =>
+      dot.repr + digits.map(_.repr).mkString
+    }.mkString
+    val exponentStr = exponent.map { (exp, sign, digits) =>
+      exp.repr + sign.map(_.repr).mkString + digits.map(_.repr).mkString
+    }.mkString
+    s"$signStr$digitsStr$fractionStr$exponentStr"
+
+given NumberFactory: Factory[NumberToken] with
+  val PLUS = '+'
+  val MINUS = '-'
+  val DIGIT = '0' to '9'
+  val DOT = '.'
+  val EXPONENT_SMALL = 'e'
+  val EXPONENT_LARGE = 'E'
+  case object Plus extends ControlToken(PLUS)
+  case object Minus extends ControlToken(MINUS)
+  case object Digit0 extends ControlToken(DIGIT(0))
+  case object Digit1 extends ControlToken(DIGIT(1))
+  case object Digit2 extends ControlToken(DIGIT(2))
+  case object Digit3 extends ControlToken(DIGIT(3))
+  case object Digit4 extends ControlToken(DIGIT(4))
+  case object Digit5 extends ControlToken(DIGIT(5))
+  case object Digit6 extends ControlToken(DIGIT(6))
+  case object Digit7 extends ControlToken(DIGIT(7))
+  case object Digit8 extends ControlToken(DIGIT(8))
+  case object Digit9 extends ControlToken(DIGIT(9))
+  case object Dot extends ControlToken(DOT)
+  case object ExponentSmall extends ControlToken(EXPONENT_SMALL)
+  case object ExponentLarge extends ControlToken(EXPONENT_LARGE)
+
+  val DigitTokens = List(
+    Digit0,
+    Digit1,
+    Digit2,
+    Digit3,
+    Digit4,
+    Digit5,
+    Digit6,
+    Digit7,
+    Digit8,
+    Digit9
+  )
+
+  type Sign = Plus.type | Minus.type
+  type Digit = Digit0.type | Digit1.type | Digit2.type | Digit3.type |
+    Digit4.type | Digit5.type | Digit6.type | Digit7.type | Digit8.type |
+    Digit9.type
+  type Digits = Seq[Digit]
+  type Fraction = (Dot.type, Digits)
+  type Exponent =
+    (ExponentSmall.type | ExponentLarge.type, Option[Sign], Digits)
+
+  def tokenize(tokenizer: Tokenizer) =
+    val sign = tokenizer.expect(Minus, false).toOption
+    for {
+      digits <- tokenizer.tokenizeDigits()
+      dot = tokenizer.expect(Dot, false).toOption
+      fraction = for {
+        d <- dot
+        dotToken <- tokenizer.expect(d).toOption // TODO left
+        digits <- tokenizer.tokenizeDigits().toOption
+      } yield (d, digits)
+      exp = tokenizer.expect(ExponentSmall, false).toOption orElse
+        tokenizer.expect(ExponentLarge, false).toOption
+      exponent = for {
+        e <- exp
+        expToken <- tokenizer.expect(e, false).toOption // TODO left
+        sign = tokenizer.expect(Minus, false).toOption orElse
+          tokenizer.expect(Plus, false).toOption
+        digits <- tokenizer.tokenizeDigits().toOption
+      } yield (
+        expToken.asInstanceOf[ExponentSmall.type | ExponentLarge.type],
+        sign.asInstanceOf[Option[Sign]],
+        digits
+      )
+    } yield NumberToken(sign, digits, fraction, exponent)
 
 case class NullToken() extends Token:
   def repr = List(
@@ -99,6 +193,10 @@ class Tokenizer(cursor: RowColIterator):
       TokenizeError.UnexpectedToken(token, Spanned(actual, span))
     )
 
+  def lookAhead2[A, B](drop: Boolean = true)(f: Char => Either[A, B]) =
+    val span = (if drop then dropWhitespace() else cursor.position).asSpan
+    f(cursor.peek).left.map(Spanned(_, span))
+
   def lookAhead() =
     val span = dropWhitespace().asSpan
     Spanned(cursor.peek, span)
@@ -120,6 +218,30 @@ class Tokenizer(cursor: RowColIterator):
       builder.append(cursor.next())
     Right(builder.mkString)
 
+  def tokenizeDigits() =
+    var builder: NumberFactory.Digits = Seq.empty
+    var look = lookAhead2(false) { c => // TODO leading zeros
+      Either.cond(
+        NumberFactory.DIGIT contains c,
+        NumberFactory.DigitTokens(c - '0'),
+        ()
+      )
+    }
+    while look.isRight do
+      builder = builder :+
+        (expect(look.getOrElse(throw new NotImplementedError))
+          .getOrElse(throw new NotImplementedError) match {
+          case d: NumberFactory.Digit => d
+        })
+      look = lookAhead2(false) { c =>
+        Either.cond(
+          NumberFactory.DIGIT contains c,
+          NumberFactory.DigitTokens(c - '0'),
+          ()
+        )
+      }
+    Right(builder)
+
 sealed trait TokenizeError extends ParseError
 object TokenizeError:
   case class UnexpectedToken(exp: ControlToken, act: Spanned[Char])
@@ -129,3 +251,5 @@ object TokenizeError:
   case class UnknownControl(act: Spanned[Char]) extends TokenizeError:
     override def span = Some(act.span)
     def message = f"unknown control token '${act.target}'"
+  case class NotFoundToken() extends TokenizeError:
+    def message = "not found token"
