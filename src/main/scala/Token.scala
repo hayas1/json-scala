@@ -19,9 +19,9 @@ given ControlFactory: Factory[ControlToken] with
 
   case object LeftBrace extends ControlToken(LEFT_BRACE)
   case object RightBrace extends ControlToken(RIGHT_BRACE)
+  case object Colon extends ControlToken(COLON)
   case object LeftBracket extends ControlToken(LEFT_BRACKET)
   case object RightBracket extends ControlToken(RIGHT_BRACKET)
-  case object Colon extends ControlToken(COLON)
   case object Comma extends ControlToken(COMMA)
 
   // TODO Only this implementation does not advance the cursor to next
