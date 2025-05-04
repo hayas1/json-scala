@@ -28,6 +28,15 @@ class VisitorTest extends AnyFunSuite:
     )
   }
 
+  test("object as map") {
+    val input = """{"a": 1, "b": 2}""".stripMargin
+    val json = parseJson[Map[String, Int]](input)
+
+    assert(
+      json == Right(Map("a" -> 1, "b" -> 2))
+    )
+  }
+
   case class Person(name: String, age: Int) derives Visitor
   test("object as defined case class") {
     val input = """{"name": "Taro", "age": 20}""".stripMargin

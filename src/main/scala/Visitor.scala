@@ -136,3 +136,19 @@ given [F[_] <: Iterable[?], T](using
       elements <- accessor.elements.toList.sequence.left
         .map(VisitorError.Parsing(_))
     } yield factory.fromSpecific(elements)
+
+given [M[_, _] <: Map[?, ?], K, V](using
+    factory: Factory[(K, V), M[K, V]],
+    kv: Visitor[K],
+    vv: Visitor[V]
+): Visitor[M[K, V]] with
+  def expectType = List(ValueType.Object)
+  override def visitObject(accessor: ObjectAccessor) =
+    for {
+      pairs <- accessor
+        .pairs[K, V]
+        .toList
+        .sequence
+        .left
+        .map(VisitorError.Parsing(_))
+    } yield factory.fromSpecific(pairs.toMap)
