@@ -22,7 +22,8 @@ class Parser(val tokenizer: Tokenizer):
               NumberFactory.Digit7 | NumberFactory.Digit8 |
               NumberFactory.Digit9 =>
             parseNumber()
-          case NullFactory.Null0 => parseNull()
+          case BoolFactory.True0 | BoolFactory.False0 => parseBool()
+          case NullFactory.Null0                      => parseNull()
           case token =>
             Left(
               TokenizeError.UnknownControl( // TODO get Span
@@ -70,6 +71,15 @@ class Parser(val tokenizer: Tokenizer):
       } yield number
     }
     number.left.map(ParseError.Context(ctx, _))
+
+  def parseBool[T, V <: Visitor]()(using visitor: V[T]) =
+    val (ctx, bool) = tokenizer.scope(ValueType.Bool) {
+      for {
+        boolToken <- tokenizer.tokenize[BoolToken]()
+        bool <- visitor.visitBool(boolToken.bool.isInstanceOf[BoolFactory.True])
+      } yield bool
+    }
+    bool.left.map(ParseError.Context(ctx, _))
 
   def parseNull[T, V <: Visitor]()(using visitor: V[T]) =
     val (ctx, nullValue) = tokenizer.scope(ValueType.Null) {

@@ -44,8 +44,10 @@ given ControlFactory: Factory[ControlToken] with
           Right(NumberFactory.ExponentSmall)
         case NumberFactory.EXPONENT_LARGE =>
           Right(NumberFactory.ExponentLarge)
-        case NullFactory.NULL0 => Right(NullFactory.Null0)
-        case c                 => Left(c)
+        case BoolFactory.TRUE0  => Right(BoolFactory.True0)
+        case BoolFactory.FALSE0 => Right(BoolFactory.False0)
+        case NullFactory.NULL0  => Right(NullFactory.Null0)
+        case c                  => Left(c)
       }
       .left
       .map(TokenizeError.UnknownControl(_))
@@ -152,6 +154,50 @@ given NumberFactory: Factory[NumberToken] with
         digits
       )
     } yield NumberToken(sign, digits, fraction, exponent)
+
+case class BoolToken(bool: BoolFactory.True | BoolFactory.False) extends Token:
+  def repr = bool match
+    case t: BoolFactory.True  => "true"
+    case f: BoolFactory.False => "false"
+given BoolFactory: Factory[BoolToken] with
+  val TRUE0 = 't'
+  val TRUE1 = 'r'
+  val TRUE2 = 'u'
+  val TRUE3 = 'e'
+  val FALSE0 = 'f'
+  val FALSE1 = 'a'
+  val FALSE2 = 'l'
+  val FALSE3 = 's'
+  val FALSE4 = 'e'
+  case object True0 extends ControlToken(TRUE0)
+  case object True1 extends ControlToken(TRUE1)
+  case object True2 extends ControlToken(TRUE2)
+  case object True3 extends ControlToken(TRUE3)
+  case object False0 extends ControlToken(FALSE0)
+  case object False1 extends ControlToken(FALSE1)
+  case object False2 extends ControlToken(FALSE2)
+  case object False3 extends ControlToken(FALSE3)
+  case object False4 extends ControlToken(FALSE4)
+
+  type True = (True0.type, True1.type, True2.type, True3.type)
+  type False = (False0.type, False1.type, False2.type, False3.type, False4.type)
+
+  def tokenize(tokenizer: Tokenizer) = tokenizer.expect(True0, false) match
+    case Right(t) =>
+      for {
+        t <- tokenizer.expect(True0)
+        r <- tokenizer.expect(True1)
+        u <- tokenizer.expect(True2)
+        e <- tokenizer.expect(True3)
+      } yield BoolToken((t, r, u, e))
+    case Left(_) =>
+      for {
+        f <- tokenizer.expect(False0)
+        a <- tokenizer.expect(False1)
+        l <- tokenizer.expect(False2)
+        s <- tokenizer.expect(False3)
+        e <- tokenizer.expect(False4)
+      } yield BoolToken((f, a, l, s, e))
 
 case class NullToken() extends Token:
   def repr = List(

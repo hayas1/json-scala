@@ -33,14 +33,14 @@ class ParseTest extends AnyFunSuite:
     )
   }
 
-  test("array consisted of int") {
-    val input = """[1, 2, 3]""".stripMargin
+  test("array consisted of int and bool") {
+    val input = """[false, true, 1]""".stripMargin
     val json = parseJson[Json](input)
 
     assert(
       json == Right(
         Json.ValueArray(
-          List(Json.ValueNumber(1), Json.ValueNumber(2), Json.ValueNumber(3))
+          List(Json.ValueBool(false), Json.ValueBool(true), Json.ValueNumber(1))
         )
       )
     )
