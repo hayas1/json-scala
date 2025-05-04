@@ -26,24 +26,29 @@ given ControlFactory: Factory[ControlToken] with
 
   // TODO Only this implementation does not advance the cursor to next
   def tokenize(tokenizer: Tokenizer) =
-    val Spanned(c, pos) = tokenizer.lookAhead()
-    c match
-      case LEFT_BRACE          => Right(LeftBrace)
-      case RIGHT_BRACE         => Right(RightBrace)
-      case COLON               => Right(Colon)
-      case LEFT_BRACKET        => Right(LeftBracket)
-      case RIGHT_BRACKET       => Right(RightBracket)
-      case COMMA               => Right(Comma)
-      case StringFactory.QUOTE => Right(StringFactory.Quote)
-      case NumberFactory.PLUS  => Right(NumberFactory.Plus)
-      case NumberFactory.MINUS => Right(NumberFactory.Minus)
-      case d if NumberFactory.DIGIT contains d =>
-        Right(NumberFactory.DigitTokens(d - '0'))
-      case NumberFactory.DOT            => Right(NumberFactory.Dot)
-      case NumberFactory.EXPONENT_SMALL => Right(NumberFactory.ExponentSmall)
-      case NumberFactory.EXPONENT_LARGE => Right(NumberFactory.ExponentLarge)
-      case NullFactory.NULL0            => Right(NullFactory.Null0)
-      case c => Left(TokenizeError.UnknownControl(Spanned(c, pos)))
+    tokenizer
+      .lookAhead() {
+        case LEFT_BRACE          => Right(LeftBrace)
+        case RIGHT_BRACE         => Right(RightBrace)
+        case COLON               => Right(Colon)
+        case LEFT_BRACKET        => Right(LeftBracket)
+        case RIGHT_BRACKET       => Right(RightBracket)
+        case COMMA               => Right(Comma)
+        case StringFactory.QUOTE => Right(StringFactory.Quote)
+        case NumberFactory.PLUS  => Right(NumberFactory.Plus)
+        case NumberFactory.MINUS => Right(NumberFactory.Minus)
+        case d if NumberFactory.DIGIT contains d =>
+          Right(NumberFactory.DigitTokens(d - '0'))
+        case NumberFactory.DOT => Right(NumberFactory.Dot)
+        case NumberFactory.EXPONENT_SMALL =>
+          Right(NumberFactory.ExponentSmall)
+        case NumberFactory.EXPONENT_LARGE =>
+          Right(NumberFactory.ExponentLarge)
+        case NullFactory.NULL0 => Right(NullFactory.Null0)
+        case c                 => Left(c)
+      }
+      .left
+      .map(TokenizeError.UnknownControl(_))
 
 case class StringToken(
     startQuote: StringFactory.Quote.type,
@@ -193,13 +198,9 @@ class Tokenizer(cursor: RowColIterator):
       TokenizeError.UnexpectedToken(token, Spanned(actual, span))
     )
 
-  def lookAhead2[A, B](drop: Boolean = true)(f: Char => Either[A, B]) =
+  def lookAhead[A, B](drop: Boolean = true)(f: Char => Either[A, B]) =
     val span = (if drop then dropWhitespace() else cursor.position).asSpan
     f(cursor.peek).left.map(Spanned(_, span))
-
-  def lookAhead() =
-    val span = dropWhitespace().asSpan
-    Spanned(cursor.peek, span)
 
   def tokenize[T <: Token]()(using Factory[T]) =
     summon[Factory[T]].tokenize(this)
@@ -220,25 +221,24 @@ class Tokenizer(cursor: RowColIterator):
 
   def tokenizeDigits() =
     var builder: NumberFactory.Digits = Seq.empty
-    var look = lookAhead2(false) { c => // TODO leading zeros
-      Either.cond(
-        NumberFactory.DIGIT contains c,
-        NumberFactory.DigitTokens(c - '0'),
-        ()
-      )
+    var look = lookAhead(false) { // TODO leading zeros
+      case c if NumberFactory.DIGIT contains c =>
+        Right(NumberFactory.DigitTokens(c - '0'))
+      case _ => Left(())
     }
+
     while look.isRight do
-      builder = builder :+
-        (expect(look.getOrElse(throw new NotImplementedError))
-          .getOrElse(throw new NotImplementedError) match {
-          case d: NumberFactory.Digit => d
-        })
-      look = lookAhead2(false) { c =>
-        Either.cond(
-          NumberFactory.DIGIT contains c,
-          NumberFactory.DigitTokens(c - '0'),
-          ()
-        )
+      val digitToken = for {
+        digit <- look
+        nextToken <- expect(digit)
+      } yield nextToken match {
+        case d: NumberFactory.Digit => d
+      } // TODO left
+      builder = builder :+ digitToken.getOrElse(throw new NotImplementedError)
+      look = lookAhead(false) {
+        case c if NumberFactory.DIGIT contains c =>
+          Right(NumberFactory.DigitTokens(c - '0'))
+        case _ => Left(())
       }
     Right(builder)
 
